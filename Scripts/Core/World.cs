@@ -7,7 +7,7 @@ using System;
 public class World : MonoBehaviour
 {
 
-    private Dictionary<Vector2IndexWrapper, Chunk> _chunks;
+    private Dictionary<Vector2, Chunk> _chunks;
 
     public Chunk chunkPrefab;
     public int chunksX, chunksY;
@@ -20,6 +20,13 @@ public class World : MonoBehaviour
 
     void Start()
     {
+        //if (1 % ((chunkPrefab.chunkSize * chunkPrefab.blockSize) / chunkPrefab.pixelUnitSize) != 0)
+        //{
+        //    Debug.Log(1 % (chunkPrefab.chunkSize * chunkPrefab.blockSize) + " : " + (chunkPrefab.chunkSize * chunkPrefab.blockSize));
+        //    Debug.LogError("Chunk Index must increase in multiples of 1");
+        //    return;
+        //}
+
         _chunkSize = (chunkPrefab.blockSize * chunkPrefab.chunkSize) / chunkPrefab.pixelUnitSize;
 
         if (chunkPrefab == null)
@@ -29,7 +36,7 @@ public class World : MonoBehaviour
             return;
         }
 
-        _chunks = new Dictionary<Vector2IndexWrapper, Chunk>();
+        _chunks = new Dictionary<Vector2, Chunk>();
 
         SetupChunks();
 
@@ -49,9 +56,7 @@ public class World : MonoBehaviour
                 chunk.Init();
                 chunk.World = this;
                 chunk.GenerateChunk();
-                _chunks.Add(chunk.ChunkPosition, chunk);
-                if (chunk.ChunkPosition.y == 3.2f)
-                    Debug.Log("T: " + chunk.transform.position.ToVector2() + " W: " + chunk.ChunkPosition + " H: "+  chunk.ChunkPosition.GetHashCode());
+                _chunks.Add(chunk.ChunkIndex, chunk);
             }
         }
 
@@ -120,17 +125,14 @@ public class World : MonoBehaviour
     {
         Vector2 index = WorldPositionToChunkIndex(position);
         Chunk chunk;
-        _chunks.TryGetValue(new Vector2IndexWrapper(index), out chunk);
+        _chunks.TryGetValue(index, out chunk);
         return chunk;
     }
 
     public Chunk GetChunkFromIndex(Vector2 index)
     {
         Chunk chunk;
-        Vector2IndexWrapper indexWrap = index;
-        _chunks.TryGetValue(indexWrap, out chunk);
-        if (chunk == null)
-            Debug.Log("Return NULL: " + index + " : " + indexWrap.GetHashCode());
+        _chunks.TryGetValue(index, out chunk);
         return chunk;
     }
 
@@ -158,49 +160,15 @@ public class World : MonoBehaviour
     {
         if (Input.GetMouseButtonDown(0))
         {
-            SetBlockWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition), new VineBlock());
+            SetBlockWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition), new DebugBlock());
         }
         if (Input.GetMouseButtonDown(1))
         {
             SetBlockWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition), null);
         }
-
-        if (Input.GetKeyDown(KeyCode.F))
+        if (Input.GetMouseButton(2))
         {
-            Chunk chunk = GetChunkFromWorldPosition(new Vector2(1.456133f, 0.4429992f));
-            chunk.SetBlockAtIndex(0, 0, new DebugBlock());
-            Block block = chunk.GetBlockAtIndex(0, 0);
-            Vector2 index;
-            chunk.GetIndexFromBlock(block, out index);
-            Vector2 worldpos = chunk.IndexToWorldPosition(index);
-            SetBlockWorldPosition(worldpos, new Vector2(0, 1), null);
-        }
-
-        if (Input.GetKeyDown(KeyCode.R))
-        {
-            foreach (Chunk chunk in _chunks.Values)
-            {
-                for (int x = 0; x < chunk.chunkSize; x++)
-                {
-                    for (int y = 0; y < chunk.chunkSize; y++)
-                    {
-                        chunk.SetBlockAtIndex(x, y, new DebugBlock());
-                    }
-                }
-            }
-        }
-        if (Input.GetKeyDown(KeyCode.T))
-        {
-            foreach (Chunk chunk in _chunks.Values)
-            {
-                for (int x = 0; x < chunk.chunkSize; x++)
-                {
-                    for (int y = 0; y < chunk.chunkSize; y++)
-                    {
-                        chunk.SetBlockAtIndex(x, y, new StandardBlock());
-                    }
-                }
-            }
+            SetBlockWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition), new StandardBlock());
         }
     }
 

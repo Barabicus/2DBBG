@@ -15,18 +15,25 @@ public class Chunk : MonoBehaviour
     public float tickTime = 2f;
 
     /// <summary>
-    /// How many blocks fit into one unit
+    /// How many blocks fit into one unity unit.
+    /// i.e. pixelsize 100 and block size 10 means it takes 10 blocks to move from point 0 to point 1
     /// </summary>
     private float _blockToUnitRatio;
     /// <summary>
-    /// What percent a block is to a unit
+    /// What space a single block occupies in unity space
+    /// i.e. pixelsize 100 and block size 10 means each block is 0.1 points in size
     /// </summary>
     private float _unitToBlockRatio;
-    private bool _isDirty = false;
+    /// <summary>
+    /// The index increment size of each chunk.
+    /// i.e. if the block size is 10, the chunk size is 10 and the pixel unit size is 100 each chunk will occupy 1 unit in space
+    /// </summary>
+    private float _chunkIndexSize;
+    private bool _isDirty = true;
     private bool _isSpriteSetup = false;
     private float _lastTickTime;
     private World _world;
-    private Vector2IndexWrapper _chunkIndex;
+    private Vector2 _chunkIndex;
 
     SpriteRenderer chunkSpriteRend;
 
@@ -55,7 +62,7 @@ public class Chunk : MonoBehaviour
         set { _world = value; }
     }
 
-    public Vector2IndexWrapper ChunkPosition
+    public Vector2 ChunkIndex
     {
         get { return _chunkIndex; }
     }
@@ -66,13 +73,6 @@ public class Chunk : MonoBehaviour
 
     public void Init()
     {
-        if (1 % ((chunkSize * blockSize) / pixelUnitSize) != 0)
-        {
-            Debug.Log(1 % (chunkSize * blockSize) + " : " + (chunkSize * blockSize));
-            Debug.LogError("Chunk Index must increase in multiples of 1");
-            return;
-        }
-
         _chunkIndex = new Vector2IndexWrapper(transform.position.ToVector2());
         // How many blocks in a chunk is based on the chunksize
         blocks = new Block[chunkSize, chunkSize];
@@ -85,13 +85,13 @@ public class Chunk : MonoBehaviour
 
         _blockToUnitRatio = pixelUnitSize / blockSize;
         _unitToBlockRatio = blockSize / pixelUnitSize;
+        _chunkIndexSize = (blockSize * chunkSize) / pixelUnitSize;
 
 
         // Set the size of the texture based on the block size and the chunk size
         texture = new Texture2D(blockSize * chunkSize, blockSize * chunkSize);
         texture.filterMode = FilterMode.Point;
         texture.wrapMode = TextureWrapMode.Repeat;
-
     }
 
     /// <summary>
@@ -114,7 +114,7 @@ public class Chunk : MonoBehaviour
     }
 
     /// <summary>
-    /// Generate initial chunk colliders
+    /// Generate chunk colliders
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -124,10 +124,11 @@ public class Chunk : MonoBehaviour
         {
             for (int y = 0; y < blocks.GetLength(1); y++)
             {
-                if (GetBlockAtIndex(x, y) != null && !IsBlockContained(x, y))
-                {
-                    CreateCollider(x, y);
-                }
+                //  if (GetBlockAtIndex(x, y) != null && !IsBlockContained(x, y))
+                //     {
+                //        CreateCollider(x, y);
+                //     }
+                CreateCollider(x, y);
             }
         }
     }
@@ -151,7 +152,6 @@ public class Chunk : MonoBehaviour
         texture.Apply();
 
         _isSpriteSetup = true;
-
     }
 
     #endregion
@@ -165,6 +165,7 @@ public class Chunk : MonoBehaviour
             boxColliders[x, y] = gameObject.AddComponent<BoxCollider2D>();
             boxColliders[x, y].center = new Vector2(((x * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2, ((y * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2);
             boxColliders[x, y].size = new Vector2(blockSize / pixelUnitSize, blockSize / pixelUnitSize);
+            boxColliders[x, y].enabled = false;
         }
     }
 
@@ -180,17 +181,6 @@ public class Chunk : MonoBehaviour
             return false;
         else
             return true;
-
-
-        //Debug.Log("other");
-
-        //Vector2 position = transform.position.ToVector2();
-        //if (World.GetBlockFromPosition(position + new Vector2(x + 1, y)) == null || World.GetBlockFromPosition(position + new Vector2(x, y + 1)) == null || World.GetBlockFromPosition(position + new Vector2(x - 1, y)) == null || World.GetBlockFromPosition(position + new Vector2(x, y - 1)) == null)
-        //    return false;
-        //else
-        //    return false;
-
-
     }
 
     /// <summary>
@@ -201,24 +191,40 @@ public class Chunk : MonoBehaviour
     private void UpdateNeighbourBlocks(int x, int y)
     {
         //Update Top Block
-        if (GetBlockAtIndex(x, y + 1) != null)
+        if (GetBlockAtLocalIndex(x, y + 1) != null)
         {
             CreateCollider(x, y + 1);
         }
         //Update Right Block
-        if (GetBlockAtIndex(x + 1, y) != null)
+        if (GetBlockAtLocalIndex(x + 1, y) != null)
         {
             CreateCollider(x + 1, y);
         }
         //Update Bottom Block
-        if (GetBlockAtIndex(x, y - 1) != null)
+        if (GetBlockAtLocalIndex(x, y - 1) != null)
         {
             CreateCollider(x, y - 1);
         }
         //Update Left Block
-        if (GetBlockAtIndex(x - 1, y) != null)
+        if (GetBlockAtLocalIndex(x - 1, y) != null)
         {
             CreateCollider(x - 1, y);
+        }
+    }
+
+    private void UpdateColliders()
+    {
+        for (int x = 0; x < blocks.GetLength(0); x++)
+        {
+            for (int y = 0; y < blocks.GetLength(1); y++)
+            {
+                if (GetBlockAtIndex(x, y) == null)
+                    SetBlockCollision(x, y, false);
+                else if (!IsBlockContained(x, y))
+                    SetBlockCollision(x, y, true);
+                else
+                    SetBlockCollision(x, y, false);
+            }
         }
     }
 
@@ -285,7 +291,8 @@ public class Chunk : MonoBehaviour
     }
 
     /// <summary>
-    /// Get block from block index
+    /// Get block from block index in relative position to this chunk. If the index is out of range of this chunk
+    /// it will attempt to translate to the proper chunk and return the relative block.
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -294,9 +301,46 @@ public class Chunk : MonoBehaviour
     {
         if (x < 0 || y < 0 || x >= blocks.GetLength(0) || y >= blocks.GetLength(1))
         {
-            return null;
+
+            int xIndex = 0;
+            int yIndex = 0;
+
+            if (x > 0)
+            {
+                xIndex = Mathf.FloorToInt(x / chunkSize);
+                x = x % chunkSize;
+            }
+            if (y > 0)
+            {
+                yIndex = Mathf.FloorToInt(y / chunkSize);
+                y = y % chunkSize;
+            }
+            if (x < 0)
+            {
+                xIndex = Mathf.CeilToInt(x / chunkSize) - 1;
+                x = (x % chunkSize) + chunkSize;
+            }
+            if (y < 0)
+            {
+                yIndex = Mathf.CeilToInt(y / chunkSize) - 1;
+                y = (y % chunkSize) + chunkSize;
+            }
+
+
+            Chunk otherChunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(xIndex, yIndex));
+            if (otherChunk != null)
+                return otherChunk.GetBlockAtIndex(x, y);
+            else return null;
         }
 
+        else
+            return blocks[x, y];
+    }
+
+    public Block GetBlockAtLocalIndex(int x, int y)
+    {
+        if (x < 0 || y < 0 || x >= blocks.GetLength(0) || y >= blocks.GetLength(1))
+            return null;
         else
             return blocks[x, y];
     }
@@ -349,7 +393,7 @@ public class Chunk : MonoBehaviour
     /// <returns></returns>
     public Vector2 IndexToWorldPosition(Vector2 index)
     {
-        return ChunkPosition + (index * _unitToBlockRatio);
+        return ChunkIndex + (index * _unitToBlockRatio);
     }
 
     /// <summary>
@@ -360,9 +404,35 @@ public class Chunk : MonoBehaviour
     {
         if (x < 0 || y < 0 || x >= blocks.GetLength(0) || y >= blocks.GetLength(1))
         {
-            return;
-        }
+            int xIndex = 0;
+            int yIndex = 0;
 
+            if (x > 0)
+            {
+                xIndex = Mathf.FloorToInt(x / chunkSize);
+                x = x % chunkSize;
+            }
+            if (y > 0)
+            {
+                yIndex = Mathf.FloorToInt(y / chunkSize);
+                y = y % chunkSize;
+            }
+            if (x < 0)
+            {
+                xIndex = Mathf.CeilToInt(x / chunkSize) - 1;
+                x = (x % chunkSize) + chunkSize;
+            }
+            if (y < 0)
+            {
+                yIndex = Mathf.CeilToInt(y / chunkSize) - 1;
+                y = (y % chunkSize) + chunkSize;
+            }
+
+            Chunk otherChunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(xIndex, yIndex));
+            if (otherChunk != null)
+                otherChunk.SetBlockAtIndex(x % chunkSize, y % chunkSize, block);
+            else return;
+        }
         else
         {
             if (blocks[x, y] != null)
@@ -376,14 +446,14 @@ public class Chunk : MonoBehaviour
             blocks[x, y] = block;
             if (block == null)
             {
-                Destroy(boxColliders[x, y]);
-                UpdateNeighbourBlocks(x, y);
+                //   Destroy(boxColliders[x, y]);
+                //  UpdateNeighbourBlocks(x, y);
             }
             else
             {
                 if (block is IUpdateable)
                     updateableBuffer.Add(block as IUpdateable);
-                CreateCollider(x, y);
+                //   CreateCollider(x, y);
             }
 
             if (block != null)
@@ -392,15 +462,49 @@ public class Chunk : MonoBehaviour
             }
 
             DrawBlock(x, y, block, texture);
-        }
+            IsDirty = true;
 
-        IsDirty = true;
+            // Set neighbour chunks to dirty
+            if (x == 0)
+            {
+               Chunk chunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(-_chunkIndexSize, 0));
+                if(chunk != null)
+               chunk.IsDirty = true;
+            }
+            if (x == blocks.GetLength(0)-1)
+            {
+                Chunk chunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(_chunkIndexSize, 0));
+                if (chunk != null)
+                    chunk.IsDirty = true;
+            }
+            if (y == 0)
+            {
+                Chunk chunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(0, -_chunkIndexSize));
+                if (chunk != null)
+                    chunk.IsDirty = true;
+            }
+            if (y == blocks.GetLength(1)-1)
+            {
+                Chunk chunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(0, _chunkIndexSize));
+                if (chunk != null)
+                    chunk.IsDirty = true;
+            }
+
+        }
     }
 
-    // TODO
-    public void SetBlockAtContact(ContactPoint2D contact)
-    {
 
+    public void SetBlockCollision(int x, int y, bool enabled)
+    {
+        if (x < 0 || y < 0 || x >= boxColliders.GetLength(0) || y >= boxColliders.GetLength(1))
+            return;
+        else
+            boxColliders[x, y].enabled = enabled;
+    }
+
+    public void SetBlockAtContact(ContactPoint2D contact, Block block)
+    {
+        SetBlockAtIndex(WorldPositionToBlockIndex(contact.point + contact.normal / (_blockToUnitRatio * 2)), block);
     }
 
     public void SetBlockAtIndex(Vector2 index, Block block)
@@ -432,6 +536,7 @@ public class Chunk : MonoBehaviour
         if (IsDirty && _isSpriteSetup)
         {
             texture.Apply();
+            UpdateColliders();
             IsDirty = false;
         }
     }
@@ -444,7 +549,7 @@ public class Chunk : MonoBehaviour
         {
             // Destroy block at contact point + the normal devided by the offset times 2 which
             // will place the position in the center of the contact point's block.
-            SetBlockAtIndex(WorldPositionToBlockIndex(contact.point + contact.normal / (_blockToUnitRatio * 2)), null);
+            SetBlockAtContact(contact, null);
             //   SetBlock(WorldPositionToBlockIndex(contact.point), new StandardBlock());
 
         }
