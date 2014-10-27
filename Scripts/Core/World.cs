@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Threading;
 using System;
+using UnityEngine.UI;
 
 public class World : MonoBehaviour
 {
@@ -13,6 +14,7 @@ public class World : MonoBehaviour
     public int chunksX, chunksY;
     public bool preRenderChunks = false;
     public int renderBatch = 8;
+    public Text text;
 
     private float _chunkSize;
 
@@ -60,11 +62,23 @@ public class World : MonoBehaviour
             }
         }
 
+        StartCoroutine(CreateChunkColliders());
+
+    }
+
+    private IEnumerator CreateChunkColliders()
+    {
+        int i = 0;
         // Setup chunk colliders
         foreach (Chunk chunk in _chunks.Values)
         {
+            text.text = "Creating Collider: " + i + " / " + _chunks.Values.Count;
             chunk.SetupBoxColliders();
+            i++;
+            if (i % 50 == 0)
+                yield return null;
         }
+
 
         if (preRenderChunks)
         {
@@ -81,8 +95,10 @@ public class World : MonoBehaviour
     private IEnumerator RenderChunks()
     {
         int yield = 0;
+        int i = 0;
         foreach (Chunk chunk in _chunks.Values)
         {
+            text.text = "Rendering: " + i + " / " + _chunks.Values.Count;
             chunk.RenderChunk();
             yield++;
             if (yield == renderBatch)
@@ -90,7 +106,12 @@ public class World : MonoBehaviour
                 yield = 0;
                 yield return null;
             }
+            i++;
         }
+
+        // Destroy GUI when finished loading
+        Destroy(text.transform.parent.gameObject);
+        
     }
 
     #endregion
@@ -160,7 +181,7 @@ public class World : MonoBehaviour
     {
         if (Input.GetMouseButtonDown(0))
         {
-            SetBlockWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition), new DebugBlock());
+            SetBlockWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition), new VineBlock());
         }
         if (Input.GetMouseButtonDown(1))
         {

@@ -14,18 +14,28 @@ public class VineBlock : Block, IUpdateable {
         if (chunk.GetIndexFromBlock(this, out index))
         {
             chunk.SetBlockAtIndex(index, new BranchBlock());
-            CreateVine(Random.Range(0, 5) == 0, Random.Range(0, 5) == 0, chunk, index);
+            
+            CreateVine(chunk, index);
+            if (Random.Range(0, 50) == 0)
+                CreateVine(chunk, index);
         }
     }
 
-    void CreateVine(bool left, bool right, Chunk chunk, Vector2 index)
+    void CreateVine(Chunk chunk, Vector2 index)
     {
-        chunk.SetBlockAtIndex(index + new Vector2(0, 1), new VineBlock());
-        if(left)
-            chunk.SetBlockAtIndex(index + new Vector2(-1, 0), new VineBlock());
-        if(right)
-            chunk.SetBlockAtIndex(index + new Vector2(1, 0), new VineBlock());
-
+        int direction = Random.Range(0, 3);
+        switch (direction)
+        {
+            case 0:
+                chunk.SetBlockAtIndex(index + new Vector2(-1, 0), new VineBlock());
+                break;
+            case 1:
+                chunk.SetBlockAtIndex(index + new Vector2(1, 0), new VineBlock());
+                break;
+            case 2:
+                chunk.SetBlockAtIndex(index + new Vector2(0, 1), new VineBlock());
+                break;
+        }
     }
 
 }

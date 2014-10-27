@@ -13,6 +13,7 @@ public class Chunk : MonoBehaviour
     public float zoom = 1f;
     public float size = 64;
     public float tickTime = 2f;
+    public ChunkGenerator generator;
 
     /// <summary>
     /// How many blocks fit into one unity unit.
@@ -104,11 +105,11 @@ public class Chunk : MonoBehaviour
         {
             for (int y = 0; y < blocks.GetLength(1); y++)
             {
-                if (Mathf.PerlinNoise(((position.x * _blockToUnitRatio) + x) / (size * zoom), ((position.y * _blockToUnitRatio) + y) / (size * zoom)) > threshhold)
-                {
-                    blocks[x, y] = new StandardBlock();
-                }
-
+             //   if (Mathf.PerlinNoise(((position.x * _blockToUnitRatio) + x) / (size * zoom), ((position.y * _blockToUnitRatio) + y) / (size * zoom)) > threshhold)
+             //   {
+             //       blocks[x, y] = new StandardBlock();
+            //    }
+                blocks[x,y] = generator.GenerateBlock(((position.x * _blockToUnitRatio) + x) / (size * zoom),  ((position.y * _blockToUnitRatio) + y) / (size * zoom));
             }
         }
     }
