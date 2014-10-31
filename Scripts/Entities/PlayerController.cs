@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class SpoutController : MonoBehaviour
+public class PlayerController : MonoBehaviour
 {
 
     public Transform bulletPrefab;
@@ -24,6 +24,17 @@ public class SpoutController : MonoBehaviour
         if (Input.GetKey(KeyCode.W))
         {
             rigidbody2D.AddForce(transform.up * speed * Time.deltaTime);
+        }
+
+        if (Input.GetMouseButtonDown(0))
+        {
+            Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
+            mousePos = mousePos.ToVector2().ToVector3();
+            for (int i = 0; i < 250; i++)
+            {
+                Transform bullet = Instantiate(bulletPrefab, mousePos + Random.insideUnitCircle.ToVector3() * 0.25f, Quaternion.identity) as Transform;
+                bullet.rigidbody2D.AddForce((bullet.transform.position - mousePos).normalized * Random.Range(bulletSpeedMin, bulletSpeedMax));
+            }
         }
     }
 

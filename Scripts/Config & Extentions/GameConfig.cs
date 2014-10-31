@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class SpoutConfig : MonoBehaviour {
+public class GameConfig : MonoBehaviour {
 
 	// Use this for initialization
     void Start()

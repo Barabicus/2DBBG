@@ -2,6 +2,7 @@
 using System.Collections;
 using System;
 using System.Collections.Generic;
+using System.Threading;
 
 public class Chunk : MonoBehaviour
 {
@@ -23,6 +24,7 @@ public class Chunk : MonoBehaviour
     /// <summary>
     /// What space a single block occupies in unity space
     /// i.e. pixelsize 100 and block size 10 means each block is 0.1 points in size
+    /// This is like how much world space a block occupies
     /// </summary>
     private float _unitToBlockRatio;
     /// <summary>
@@ -68,13 +70,37 @@ public class Chunk : MonoBehaviour
         get { return _chunkIndex; }
     }
 
+    public float ChunkIndexSize
+    {
+        get { return (blockSize * chunkSize) / pixelUnitSize; }
+    }
+
+    /// <summary>
+    /// How many blocks fit into one unity unit.
+    /// i.e. pixelsize 100 and block size 10 means it takes 10 blocks to move from point 0 to point 1
+    /// </summary>
+    public float BlockToUnitRatio
+    {
+        get { return pixelUnitSize / blockSize; }
+    }
+
+    /// <summary>
+    /// What space a single block occupies in unity space
+    /// i.e. pixelsize 100 and block size 10 means each block is 0.1 points in size
+    /// This is like how much world space a block occupies
+    /// </summary>
+    public float UnitToBlockRatio
+    {
+        get { return blockSize / pixelUnitSize; }
+    }
+
     #endregion
 
     #region Initialization
 
     public void Init()
     {
-        _chunkIndex = new Vector2IndexWrapper(transform.position.ToVector2());
+        _chunkIndex = transform.position.ToVector2();
         // How many blocks in a chunk is based on the chunksize
         blocks = new Block[chunkSize, chunkSize];
         boxColliders = new BoxCollider2D[chunkSize, chunkSize];
@@ -88,6 +114,7 @@ public class Chunk : MonoBehaviour
         _unitToBlockRatio = blockSize / pixelUnitSize;
         _chunkIndexSize = (blockSize * chunkSize) / pixelUnitSize;
 
+        name = "Chunk" + ChunkIndex;
 
         // Set the size of the texture based on the block size and the chunk size
         texture = new Texture2D(blockSize * chunkSize, blockSize * chunkSize);
@@ -96,7 +123,7 @@ public class Chunk : MonoBehaviour
     }
 
     /// <summary>
-    /// Generate chunk map
+    /// Generate chunk from chunk generator
     /// </summary>
     public void GenerateChunk()
     {
@@ -105,10 +132,6 @@ public class Chunk : MonoBehaviour
         {
             for (int y = 0; y < blocks.GetLength(1); y++)
             {
-             //   if (Mathf.PerlinNoise(((position.x * _blockToUnitRatio) + x) / (size * zoom), ((position.y * _blockToUnitRatio) + y) / (size * zoom)) > threshhold)
-             //   {
-             //       blocks[x, y] = new StandardBlock();
-            //    }
                 blocks[x,y] = generator.GenerateBlock(((position.x * _blockToUnitRatio) + x) / (size * zoom),  ((position.y * _blockToUnitRatio) + y) / (size * zoom));
             }
         }
@@ -125,10 +148,6 @@ public class Chunk : MonoBehaviour
         {
             for (int y = 0; y < blocks.GetLength(1); y++)
             {
-                //  if (GetBlockAtIndex(x, y) != null && !IsBlockContained(x, y))
-                //     {
-                //        CreateCollider(x, y);
-                //     }
                 CreateCollider(x, y);
             }
         }
@@ -445,17 +464,12 @@ public class Chunk : MonoBehaviour
             }
 
             blocks[x, y] = block;
-            if (block == null)
-            {
-                //   Destroy(boxColliders[x, y]);
-                //  UpdateNeighbourBlocks(x, y);
-            }
-            else
+            if (block != null)
             {
                 if (block is IUpdateable)
                     updateableBuffer.Add(block as IUpdateable);
-                //   CreateCollider(x, y);
             }
+
 
             if (block != null)
             {
@@ -503,9 +517,24 @@ public class Chunk : MonoBehaviour
             boxColliders[x, y].enabled = enabled;
     }
 
+    /// <summary>
+    /// Set at the contact point. This should not be called internally.
+    /// </summary>
+    /// <param name="contact"></param>
+    /// <param name="block"></param>
+    public void SetBlockAtContact(ContactPoint2D contact, Vector2 normal, Block block)
+    {
+        SetBlockAtIndex(WorldPositionToBlockIndex(contact.point + normal / (_blockToUnitRatio * 2)), block);
+    }
+
     public void SetBlockAtContact(ContactPoint2D contact, Block block)
     {
-        SetBlockAtIndex(WorldPositionToBlockIndex(contact.point + contact.normal / (_blockToUnitRatio * 2)), block);
+        SetBlockAtContact(contact, -contact.normal, block);
+    }
+
+    public Vector2 GetIndexFromContact(ContactPoint2D contact)
+    {
+        return WorldPositionToBlockIndex(contact.point + -contact.normal / (_blockToUnitRatio * 2));
     }
 
     public void SetBlockAtIndex(Vector2 index, Block block)
@@ -542,21 +571,19 @@ public class Chunk : MonoBehaviour
         }
     }
 
-    void OnCollisionEnter2D(Collision2D coll)
-    {
-        if (coll.gameObject.layer != 9)
-            return;
-        foreach (ContactPoint2D contact in coll.contacts)
-        {
-            // Destroy block at contact point + the normal devided by the offset times 2 which
-            // will place the position in the center of the contact point's block.
-            SetBlockAtContact(contact, null);
-            //   SetBlock(WorldPositionToBlockIndex(contact.point), new StandardBlock());
+    //void OnCollisionEnter2D(Collision2D coll)
+    //{
 
-        }
-
-        Destroy(coll.gameObject);
-    }
+    //    foreach (ContactPoint2D contact in coll.contacts)
+    //    {
+    //        // Destroy block at contact point + the normal devided by the offset times 2 which
+    //        // will place the position in the center of the contact point's block.
+    //     //   SetBlockAtContact(contact, null);
+    //        //   SetBlock(WorldPositionToBlockIndex(contact.point), new StandardBlock());
+    //        Debug.DrawRay(contact.point, contact.normal / (_blockToUnitRatio * 2), Color.red, 60f);
+    //    }
+    //    Destroy(coll.gameObject);
+    //}
 
     #endregion
 

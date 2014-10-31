@@ -11,19 +11,19 @@ public class Bullet : MonoBehaviour {
         StartCoroutine(Destroy());
     }
 	
-	// Update is called once per frame
-    void Update()
-    {
-
-    }
 
     void OnCollisionEnter2D(Collision2D col)
     {
-        if (col.collider.gameObject.layer == 8)
+        if (col.collider.gameObject.layer == 11)
         {
-            Destroy(col.gameObject);
-            Destroy(gameObject);
+            foreach (ContactPoint2D contact in col.contacts)
+            {
+                Chunk ch = col.gameObject.GetComponent<Chunk>();
+             //   ch.SetBlockAtContact(contact, new StandardBlock());
+                ch.SetBlockAtContact(contact, null);
+            }
         }
+        Destroy(gameObject);
     }
 
     IEnumerator Destroy()
