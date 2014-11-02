@@ -6,8 +6,13 @@ public class GameConfig : MonoBehaviour {
 	// Use this for initialization
     void Start()
     {
+        // Bullets ignore bullets
         Physics2D.IgnoreLayerCollision(9, 9);
+        // Bullets ignore player
         Physics2D.IgnoreLayerCollision(9, 10);
+        // Chunk Ignores Chunk
+        Physics2D.IgnoreLayerCollision(11, 11);
+
     }
 
     void Update()

@@ -3,6 +3,7 @@ using System.Collections;
 using System;
 using System.Collections.Generic;
 using System.Threading;
+using UnityEditor;
 
 public class Chunk : MonoBehaviour
 {
@@ -41,7 +42,9 @@ public class Chunk : MonoBehaviour
     SpriteRenderer chunkSpriteRend;
 
     Block[,] blocks;
-    BoxCollider2D[,] boxColliders;
+    //BoxCollider2D[,] boxColliders;
+    public BoxCollider2D[] boxColliders;
+
     Texture2D texture;
 
     List<IUpdateable> updateables;
@@ -97,16 +100,12 @@ public class Chunk : MonoBehaviour
     #endregion
 
     #region Initialization
-
-    public void Init()
+    public void InitialSetup()
     {
-        _chunkIndex = transform.position.ToVector2();
         // How many blocks in a chunk is based on the chunksize
         blocks = new Block[chunkSize, chunkSize];
-        boxColliders = new BoxCollider2D[chunkSize, chunkSize];
         updateables = new List<IUpdateable>();
         updateableBuffer = new List<IUpdateable>();
-        _lastTickTime = Time.deltaTime;
 
         chunkSpriteRend = gameObject.GetComponent<SpriteRenderer>();
 
@@ -114,12 +113,19 @@ public class Chunk : MonoBehaviour
         _unitToBlockRatio = blockSize / pixelUnitSize;
         _chunkIndexSize = (blockSize * chunkSize) / pixelUnitSize;
 
-        name = "Chunk" + ChunkIndex;
-
         // Set the size of the texture based on the block size and the chunk size
         texture = new Texture2D(blockSize * chunkSize, blockSize * chunkSize);
         texture.filterMode = FilterMode.Point;
         texture.wrapMode = TextureWrapMode.Repeat;
+    }
+
+    public void Initialize()
+    {
+        _chunkIndex = transform.position.ToVector2();
+        _lastTickTime = Time.deltaTime;
+        name = "Chunk" + ChunkIndex;
+        IsDirty = true;
+        GenerateChunk();
     }
 
     /// <summary>
@@ -132,7 +138,7 @@ public class Chunk : MonoBehaviour
         {
             for (int y = 0; y < blocks.GetLength(1); y++)
             {
-                blocks[x,y] = generator.GenerateBlock(((position.x * _blockToUnitRatio) + x) / (size * zoom),  ((position.y * _blockToUnitRatio) + y) / (size * zoom));
+                blocks[x, y] = generator.GenerateBlock(((position.x * _blockToUnitRatio) + x) / (size * zoom), ((position.y * _blockToUnitRatio) + y) / (size * zoom));
             }
         }
     }
@@ -142,15 +148,35 @@ public class Chunk : MonoBehaviour
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
+    [ContextMenu("Setup Box Colliders")]
     public void SetupBoxColliders()
     {
-        for (int x = 0; x < blocks.GetLength(0); x++)
+        BoxCollider2D[] colliders = GetComponents<BoxCollider2D>();
+        for (int i = colliders.Length - 1; i >= 0; i--)
         {
-            for (int y = 0; y < blocks.GetLength(1); y++)
+            DestroyImmediate(colliders[i], true);
+        }
+
+        boxColliders = new BoxCollider2D[chunkSize * chunkSize];
+
+        for (int x = 0; x < chunkSize; x++)
+        {
+            for (int y = 0; y < chunkSize; y++)
             {
                 CreateCollider(x, y);
             }
         }
+    }
+
+    void IndexToCoord(float index, out int x, out int y)
+    {
+        x = Mathf.FloorToInt(index / chunkSize);
+        y = (int)(index % chunkSize);
+    }
+
+    int CoordToIndex(int x, int y)
+    {
+        return (chunkSize * x) + y;
     }
 
     /// <summary>
@@ -161,13 +187,7 @@ public class Chunk : MonoBehaviour
         // Create the sprite
         chunkSpriteRend.sprite = Sprite.Create(texture, new Rect(0, 0, blockSize * chunkSize, blockSize * chunkSize), Vector2.zero);
 
-        for (int x = 0; x < blocks.GetLength(0); x++)
-        {
-            for (int y = 0; y < blocks.GetLength(1); y++)
-            {
-                DrawBlock(x, y, blocks[x, y], texture);
-            }
-        }
+        DrawAllBlocks();
 
         texture.Apply();
 
@@ -180,12 +200,13 @@ public class Chunk : MonoBehaviour
 
     private void CreateCollider(int x, int y)
     {
-        if (boxColliders[x, y] == null)
+        int index = CoordToIndex(x, y);
+        if (boxColliders[index] == null)
         {
-            boxColliders[x, y] = gameObject.AddComponent<BoxCollider2D>();
-            boxColliders[x, y].center = new Vector2(((x * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2, ((y * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2);
-            boxColliders[x, y].size = new Vector2(blockSize / pixelUnitSize, blockSize / pixelUnitSize);
-            boxColliders[x, y].enabled = false;
+            boxColliders[index] = gameObject.AddComponent<BoxCollider2D>();
+            boxColliders[index].center = new Vector2(((x * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2, ((y * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2);
+            boxColliders[index].size = new Vector2(blockSize / pixelUnitSize, blockSize / pixelUnitSize);
+            boxColliders[index].enabled = false;
         }
     }
 
@@ -203,47 +224,16 @@ public class Chunk : MonoBehaviour
             return true;
     }
 
-    /// <summary>
-    /// Update neighbouring blocks at index x, y. If the block is not null, create a collider for it
-    /// </summary>
-    /// <param name="x"></param>
-    /// <param name="y"></param>
-    private void UpdateNeighbourBlocks(int x, int y)
-    {
-        //Update Top Block
-        if (GetBlockAtLocalIndex(x, y + 1) != null)
-        {
-            CreateCollider(x, y + 1);
-        }
-        //Update Right Block
-        if (GetBlockAtLocalIndex(x + 1, y) != null)
-        {
-            CreateCollider(x + 1, y);
-        }
-        //Update Bottom Block
-        if (GetBlockAtLocalIndex(x, y - 1) != null)
-        {
-            CreateCollider(x, y - 1);
-        }
-        //Update Left Block
-        if (GetBlockAtLocalIndex(x - 1, y) != null)
-        {
-            CreateCollider(x - 1, y);
-        }
-    }
-
     private void UpdateColliders()
     {
-        for (int x = 0; x < blocks.GetLength(0); x++)
+        for (int x = 0; x < chunkSize; x++)
         {
-            for (int y = 0; y < blocks.GetLength(1); y++)
+            for (int y = 0; y < chunkSize; y++)
             {
-                if (GetBlockAtIndex(x, y) == null)
+                if (GetBlockAtIndex(x, y) == null || IsBlockContained(x,y))
                     SetBlockCollision(x, y, false);
-                else if (!IsBlockContained(x, y))
-                    SetBlockCollision(x, y, true);
                 else
-                    SetBlockCollision(x, y, false);
+                    SetBlockCollision(x, y, true);
             }
         }
     }
@@ -279,6 +269,17 @@ public class Chunk : MonoBehaviour
     private void DrawBlock(Vector2 index, Block block, Texture2D texture)
     {
         DrawBlock((int)index.x, (int)index.y, block, texture);
+    }
+
+    public void DrawAllBlocks()
+    {
+        for (int x = 0; x < chunkSize; x++)
+        {
+            for (int y = 0; y < chunkSize; y++)
+            {
+                DrawBlock(x, y, blocks[x, y], texture);
+            }
+        }
     }
 
     #endregion
@@ -482,11 +483,11 @@ public class Chunk : MonoBehaviour
             // Set neighbour chunks to dirty
             if (x == 0)
             {
-               Chunk chunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(-_chunkIndexSize, 0));
-                if(chunk != null)
-               chunk.IsDirty = true;
+                Chunk chunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(-_chunkIndexSize, 0));
+                if (chunk != null)
+                    chunk.IsDirty = true;
             }
-            if (x == blocks.GetLength(0)-1)
+            if (x == blocks.GetLength(0) - 1)
             {
                 Chunk chunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(_chunkIndexSize, 0));
                 if (chunk != null)
@@ -498,7 +499,7 @@ public class Chunk : MonoBehaviour
                 if (chunk != null)
                     chunk.IsDirty = true;
             }
-            if (y == blocks.GetLength(1)-1)
+            if (y == blocks.GetLength(1) - 1)
             {
                 Chunk chunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(0, _chunkIndexSize));
                 if (chunk != null)
@@ -511,10 +512,10 @@ public class Chunk : MonoBehaviour
 
     public void SetBlockCollision(int x, int y, bool enabled)
     {
-        if (x < 0 || y < 0 || x >= boxColliders.GetLength(0) || y >= boxColliders.GetLength(1))
+        if (x < 0 || y < 0 || x >= chunkSize || y >= chunkSize)
             return;
         else
-            boxColliders[x, y].enabled = enabled;
+            boxColliders[CoordToIndex(x,y)].enabled = enabled;
     }
 
     /// <summary>
@@ -570,20 +571,6 @@ public class Chunk : MonoBehaviour
             IsDirty = false;
         }
     }
-
-    //void OnCollisionEnter2D(Collision2D coll)
-    //{
-
-    //    foreach (ContactPoint2D contact in coll.contacts)
-    //    {
-    //        // Destroy block at contact point + the normal devided by the offset times 2 which
-    //        // will place the position in the center of the contact point's block.
-    //     //   SetBlockAtContact(contact, null);
-    //        //   SetBlock(WorldPositionToBlockIndex(contact.point), new StandardBlock());
-    //        Debug.DrawRay(contact.point, contact.normal / (_blockToUnitRatio * 2), Color.red, 60f);
-    //    }
-    //    Destroy(coll.gameObject);
-    //}
 
     #endregion
 

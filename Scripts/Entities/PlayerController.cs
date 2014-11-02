@@ -16,6 +16,7 @@ public class PlayerController : MonoBehaviour
     public float bulletSpeedMin = 100f;
     public float bulletSpeedMax = 200f;
     public bool sprayBullet = true;
+    public bool clickCausesExplode = false;
 
     public void Update()
     {
@@ -26,7 +27,7 @@ public class PlayerController : MonoBehaviour
             rigidbody2D.AddForce(transform.up * speed * Time.deltaTime);
         }
 
-        if (Input.GetMouseButtonDown(0))
+        if (Input.GetMouseButtonDown(0) && clickCausesExplode)
         {
             Vector3 mousePos = Camera.main.ScreenToWorldPoint(Input.mousePosition);
             mousePos = mousePos.ToVector2().ToVector3();
@@ -36,11 +37,18 @@ public class PlayerController : MonoBehaviour
                 bullet.rigidbody2D.AddForce((bullet.transform.position - mousePos).normalized * Random.Range(bulletSpeedMin, bulletSpeedMax));
             }
         }
-    }
 
+        if (Input.GetKey(KeyCode.Space))
+        {
+            for (int i = 0; i < Random.Range(minShootAmount, maxShootAmount); i++)
+            {
+                ShootBullet(shootPointLeft, transform.up);
 
-    void FixedUpdate()
-    {
+                ShootBullet(shootPointRight, transform.up);
+            }
+
+        }
+
         if (Input.GetKey(KeyCode.W))
         {
             if (sprayBullet)
@@ -52,13 +60,6 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        if (Input.GetKey(KeyCode.Space))
-        {
-            ShootBullet(shootPointLeft, transform.up);
-
-            ShootBullet(shootPointRight, transform.up);
-
-        }
     }
 
 

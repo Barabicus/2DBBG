@@ -24,7 +24,7 @@ public class UIController : MonoBehaviour {
     }
 
 
-    public void Start()
+    public void Awake()
     {
         if (Instance == null)
             Instance = this;
