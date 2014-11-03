@@ -8,6 +8,7 @@ public class GameController : MonoBehaviour
     public World world;
     public Vector3 boundsSize;
     public Chunk chunkPrefab;
+    public int chunksToMoveAtOnce = 5;
 
     Chunk[] chunks;
     Vector3 lastPosition;
@@ -47,13 +48,13 @@ public class GameController : MonoBehaviour
     {
             if (bottomChunk.transform.position.y < player.transform.position.y - boundsSize.y)
             {
-                for (int i = 0; i < world.chunksX; i++)
+                for (int i = 0; i < world.chunksX * chunksToMoveAtOnce; i++)
                 {
                     chunks[i + bottomIndex].transform.position = world.WorldPositionToChunkIndex(new Vector2(chunks[i + bottomIndex].transform.position.x, chunks[i + bottomIndex].transform.position.y + (world.chunksY * chunkPrefab.ChunkIndexSize)));
                     chunks[i + bottomIndex].Initialize();
                     chunks[i + bottomIndex].DrawAllBlocks();
                 }
-                bottomIndex = bottomIndex != (world.chunksX * (world.chunksY - 1)) ? bottomIndex + world.chunksX : 0;
+                bottomIndex = bottomIndex + (world.chunksX * chunksToMoveAtOnce) < (world.chunksX * world.chunksY) ? bottomIndex + (world.chunksX * chunksToMoveAtOnce) : 0;
                 bottomChunk = chunks[bottomIndex];
             }
     }

@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class VineBlock : Block, IUpdateable {
+public class VineBlock : Block, ITickable {
 
     public override Color BlockColor
     {

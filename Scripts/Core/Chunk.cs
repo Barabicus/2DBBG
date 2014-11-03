@@ -3,31 +3,31 @@ using System.Collections;
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using UnityEditor;
 
+[RequireComponent(typeof(SpriteRenderer))]
+[RequireComponent(typeof(Rigidbody2D))]
 public class Chunk : MonoBehaviour
 {
 
     #region Fields
     public int blockSize = 10;
-    public int chunkSize = 16;
-    public float threshhold = 0.5f;
-    public float zoom = 1f;
-    public float size = 64;
+    public int chunkSize = 10;
+    public bool useThreading = true;
     public float tickTime = 2f;
     public ChunkGenerator generator;
+    public bool autoGenerateOnStart = false;
+
 
     /// <summary>
-    /// How many blocks fit into one unity unit.
-    /// i.e. pixelsize 100 and block size 10 means it takes 10 blocks to move from point 0 to point 1
+    /// This is how much space a chunk occupies in world space either horizontally or vertically
     /// </summary>
-    private float _blockToUnitRatio;
+    private float _chunkToWorldSize;
     /// <summary>
     /// What space a single block occupies in unity space
     /// i.e. pixelsize 100 and block size 10 means each block is 0.1 points in size
-    /// This is like how much world space a block occupies
+    /// This is how much world space a block occupies
     /// </summary>
-    private float _unitToBlockRatio;
+    private float _blockToWorldSize;
     /// <summary>
     /// The index increment size of each chunk.
     /// i.e. if the block size is 10, the chunk size is 10 and the pixel unit size is 100 each chunk will occupy 1 unit in space
@@ -42,13 +42,13 @@ public class Chunk : MonoBehaviour
     SpriteRenderer chunkSpriteRend;
 
     Block[,] blocks;
-    //BoxCollider2D[,] boxColliders;
     public BoxCollider2D[] boxColliders;
 
     Texture2D texture;
+    Color[] texturePixels;
 
-    List<IUpdateable> updateables;
-    List<IUpdateable> updateableBuffer;
+    List<ITickable> updateables;
+    List<ITickable> updateableBuffer;
 
     public float pixelUnitSize = 100f;
 
@@ -79,10 +79,9 @@ public class Chunk : MonoBehaviour
     }
 
     /// <summary>
-    /// How many blocks fit into one unity unit.
-    /// i.e. pixelsize 100 and block size 10 means it takes 10 blocks to move from point 0 to point 1
+    /// This is how much space a chunk occupies in world space either horizontally or vertically
     /// </summary>
-    public float BlockToUnitRatio
+    public float ChunkToWorldSize
     {
         get { return pixelUnitSize / blockSize; }
     }
@@ -90,9 +89,9 @@ public class Chunk : MonoBehaviour
     /// <summary>
     /// What space a single block occupies in unity space
     /// i.e. pixelsize 100 and block size 10 means each block is 0.1 points in size
-    /// This is like how much world space a block occupies
+    /// This is how much world space a block occupies
     /// </summary>
-    public float UnitToBlockRatio
+    public float BlockToWorldSize
     {
         get { return blockSize / pixelUnitSize; }
     }
@@ -100,23 +99,37 @@ public class Chunk : MonoBehaviour
     #endregion
 
     #region Initialization
+
+    void Start()
+    {
+        if (autoGenerateOnStart)
+        {
+            InitialSetup();
+            Initialize();
+        }
+    }
+
     public void InitialSetup()
     {
+        rigidbody2D.isKinematic = true;
+
         // How many blocks in a chunk is based on the chunksize
         blocks = new Block[chunkSize, chunkSize];
-        updateables = new List<IUpdateable>();
-        updateableBuffer = new List<IUpdateable>();
+        updateables = new List<ITickable>();
+        updateableBuffer = new List<ITickable>();
 
         chunkSpriteRend = gameObject.GetComponent<SpriteRenderer>();
 
-        _blockToUnitRatio = pixelUnitSize / blockSize;
-        _unitToBlockRatio = blockSize / pixelUnitSize;
+        _chunkToWorldSize = pixelUnitSize / blockSize;
+        _blockToWorldSize = blockSize / pixelUnitSize;
         _chunkIndexSize = (blockSize * chunkSize) / pixelUnitSize;
 
         // Set the size of the texture based on the block size and the chunk size
         texture = new Texture2D(blockSize * chunkSize, blockSize * chunkSize);
         texture.filterMode = FilterMode.Point;
         texture.wrapMode = TextureWrapMode.Repeat;
+        texturePixels = texture.GetPixels();
+
     }
 
     public void Initialize()
@@ -138,7 +151,7 @@ public class Chunk : MonoBehaviour
         {
             for (int y = 0; y < blocks.GetLength(1); y++)
             {
-                blocks[x, y] = generator.GenerateBlock(((position.x * _blockToUnitRatio) + x) / (size * zoom), ((position.y * _blockToUnitRatio) + y) / (size * zoom));
+                blocks[x, y] = generator.GenerateBlock(((position.x * _chunkToWorldSize) + x) * BlockToWorldSize, ((position.y * _chunkToWorldSize) + y) * BlockToWorldSize);
             }
         }
     }
@@ -172,6 +185,11 @@ public class Chunk : MonoBehaviour
     {
         x = Mathf.FloorToInt(index / chunkSize);
         y = (int)(index % chunkSize);
+    }
+
+    int CoordToIndexPixel(int x, int y)
+    {
+        return ((chunkSize * blockSize) * y) + x;
     }
 
     int CoordToIndex(int x, int y)
@@ -255,9 +273,24 @@ public class Chunk : MonoBehaviour
         {
             for (int yy = 0; yy < blockSize; yy++)
             {
-                texture.SetPixel((x * blockSize) + xx, (y * blockSize) + yy, block != null ? block.BlockColor : Color.clear);
+                texturePixels[CoordToIndexPixel((x * blockSize) + xx, (y * blockSize) + yy)] = block != null ? block.BlockColor : Color.clear;
             }
         }
+        //ChunkEventArgs eventArgs = new ChunkEventArgs(x, y, block, texture);
+        //ThreadPool.QueueUserWorkItem(DrawBlockThreaded, eventArgs);
+    }
+
+    private void DrawBlockThreaded(object context)
+    {
+        ChunkEventArgs ch = (ChunkEventArgs)context;
+        for (int xx = 0; xx < blockSize; xx++)
+        {
+            for (int yy = 0; yy < blockSize; yy++)
+            {
+                texturePixels[CoordToIndexPixel((ch.x * blockSize) + xx, (ch.y * blockSize) + yy)] = ch.block != null ? ch.block.BlockColor : Color.clear;
+            }
+        }
+        IsDirty = true;
     }
 
     /// <summary>
@@ -269,10 +302,12 @@ public class Chunk : MonoBehaviour
     private void DrawBlock(Vector2 index, Block block, Texture2D texture)
     {
         DrawBlock((int)index.x, (int)index.y, block, texture);
+        IsDirty = true;
     }
 
-    public void DrawAllBlocks()
+    private void DrawAllBlocks(object context)
     {
+
         for (int x = 0; x < chunkSize; x++)
         {
             for (int y = 0; y < chunkSize; y++)
@@ -280,6 +315,15 @@ public class Chunk : MonoBehaviour
                 DrawBlock(x, y, blocks[x, y], texture);
             }
         }
+        IsDirty = true;
+    }
+
+    public void DrawAllBlocks()
+    {
+        if (useThreading)
+            ThreadPool.QueueUserWorkItem(DrawAllBlocks);
+        else
+            DrawAllBlocks(null);
     }
 
     #endregion
@@ -383,7 +427,7 @@ public class Chunk : MonoBehaviour
     /// <returns></returns>
     public Block GetBlockFromWorldPosition(Vector2 position)
     {
-        Vector2 index = WorldPositionToBlockIndex(position);
+        Vector2 index = WorldPositionToIndex(position);
         if (index.x < 0 || index.y < 0 || index.x > blocks.GetLength(0) || index.y > blocks.GetLength(1))
         {
             return null;
@@ -397,13 +441,13 @@ public class Chunk : MonoBehaviour
     /// </summary>
     /// <param name="position"></param>
     /// <returns></returns>
-    public Vector2 WorldPositionToBlockIndex(Vector2 position)
+    public Vector2 WorldPositionToIndex(Vector2 position)
     {
         position -= transform.position.ToVector2();
         Vector2 points = position;
         Vector2 mod = new Vector2(points.x % (blockSize / pixelUnitSize), points.y % (blockSize / pixelUnitSize));
         Vector2 index = points - mod;
-        index *= _blockToUnitRatio;
+        index *= _chunkToWorldSize;
         return index;
     }
 
@@ -414,7 +458,7 @@ public class Chunk : MonoBehaviour
     /// <returns></returns>
     public Vector2 IndexToWorldPosition(Vector2 index)
     {
-        return ChunkIndex + (index * _unitToBlockRatio);
+        return ChunkIndex + (index * _blockToWorldSize);
     }
 
     /// <summary>
@@ -459,16 +503,16 @@ public class Chunk : MonoBehaviour
             if (blocks[x, y] != null)
             {
                 // If block implemented IUpdateable remove it from the list
-                if (blocks[x, y] is IUpdateable)
-                    updateables.Remove(blocks[x, y] as IUpdateable);
+                if (blocks[x, y] is ITickable)
+                    updateables.Remove(blocks[x, y] as ITickable);
                 blocks[x, y].OnDestroy(this);
             }
 
             blocks[x, y] = block;
             if (block != null)
             {
-                if (block is IUpdateable)
-                    updateableBuffer.Add(block as IUpdateable);
+                if (block is ITickable)
+                    updateableBuffer.Add(block as ITickable);
             }
 
 
@@ -525,7 +569,7 @@ public class Chunk : MonoBehaviour
     /// <param name="block"></param>
     public void SetBlockAtContact(ContactPoint2D contact, Vector2 normal, Block block)
     {
-        SetBlockAtIndex(WorldPositionToBlockIndex(contact.point + normal / (_blockToUnitRatio * 2)), block);
+        SetBlockAtIndex(WorldPositionToIndex(contact.point + normal / (_chunkToWorldSize * 2)), block);
     }
 
     public void SetBlockAtContact(ContactPoint2D contact, Block block)
@@ -535,7 +579,8 @@ public class Chunk : MonoBehaviour
 
     public Vector2 GetIndexFromContact(ContactPoint2D contact)
     {
-        return WorldPositionToBlockIndex(contact.point + -contact.normal / (_blockToUnitRatio * 2));
+       // Debug.DrawRay(contact.point, -contact.normal / (_chunkToWorldSize * 2) * 20f, Color.red, 20f);
+        return WorldPositionToIndex(contact.point + -contact.normal / (_chunkToWorldSize * 2));
     }
 
     public void SetBlockAtIndex(Vector2 index, Block block)
@@ -545,7 +590,7 @@ public class Chunk : MonoBehaviour
 
     public void SetBlockAtWorldPosition(Vector2 position, Block block)
     {
-        SetBlockAtIndex(WorldPositionToBlockIndex(position), block);
+        SetBlockAtIndex(WorldPositionToIndex(position), block);
     }
 
     #endregion
@@ -566,6 +611,7 @@ public class Chunk : MonoBehaviour
 
         if (IsDirty && _isSpriteSetup)
         {
+            texture.SetPixels(texturePixels);
             texture.Apply();
             UpdateColliders();
             IsDirty = false;
@@ -588,4 +634,20 @@ public class Chunk : MonoBehaviour
     }
 
     #endregion
+}
+
+public struct ChunkEventArgs
+{
+    public int x, y;
+    public Block block;
+    public Texture2D texture;
+
+    public ChunkEventArgs(int x, int y, Block block, Texture2D texture)
+    {
+        this.x = x;
+        this.y = y;
+        this.block = block;
+        this.texture = texture;
+    }
+        
 }

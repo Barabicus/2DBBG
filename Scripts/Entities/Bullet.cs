@@ -3,7 +3,6 @@ using System.Collections;
 
 public class Bullet : MonoBehaviour {
 
-	// Use this for initialization
     public float destroyTime = 5f;
 
     void Start()
@@ -19,7 +18,6 @@ public class Bullet : MonoBehaviour {
             foreach (ContactPoint2D contact in col.contacts)
             {
                 Chunk ch = col.gameObject.GetComponent<Chunk>();
-             //   ch.SetBlockAtContact(contact, new StandardBlock());
                 ch.SetBlockAtContact(contact, null);
             }
         }

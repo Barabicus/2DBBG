@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class DebugBlock : Block, IUpdateable {
+public class DebugBlock : Block, ITickable {
 
     public override Color BlockColor
     {

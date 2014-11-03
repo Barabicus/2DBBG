@@ -6,6 +6,7 @@ public class UIController : MonoBehaviour {
 
     public Image image;
     public Text UILabel;
+    public LoadingStatus loadStatus;
 
     private float _lastTime;
     private UIState _uiState;
@@ -17,24 +18,6 @@ public class UIController : MonoBehaviour {
         Timer
     }
 
-    public static UIController Instance
-    {
-        get;
-        private set;
-    }
-
-
-    public void Awake()
-    {
-        if (Instance == null)
-            Instance = this;
-        else
-        {
-            Debug.LogError("UI Controller Instance already exists");
-            Destroy(this);
-            return;
-        }
-    }
 
     public void CloseUI()
     {
@@ -58,14 +41,15 @@ public class UIController : MonoBehaviour {
 
     public void Update()
     {
+        if (loadStatus.isLoading)
+            SetText(loadStatus.FormattedLoadingText, 0.5f);
+
         switch (_uiState)
         {
             case UIState.Timer:
                 if (Time.time - _lastTime > _timeOut)
                 {
                     image.gameObject.SetActive(false);
-               //     image.color = Color.Lerp(image.color, Color.clear, Time.deltaTime);
-                //    UILabel.color = Color.Lerp(image.color, Color.clear, Time.deltaTime);
                 }
                 break;
         }

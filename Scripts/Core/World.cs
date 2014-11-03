@@ -6,6 +6,7 @@ using System;
 using UnityEngine.UI;
 using System.Linq;
 
+[RequireComponent(typeof(LoadingStatus))]
 public class World : MonoBehaviour
 {
 
@@ -13,22 +14,34 @@ public class World : MonoBehaviour
 
     public Chunk chunkPrefab;
     public int chunksX, chunksY;
+    /// <summary>
+    /// Set to true if the chunks should load before anything else happens. If set to false the chunks will load during gameplay.
+    /// </summary>
     public bool preloadChunks = false;
+    /// <summary>
+    /// The amount of chunks to render at each load tick
+    /// </summary>
     public int renderBatch = 8;
+    /// <summary>
+    /// Populate the world on start
+    /// </summary>
     public bool loadChunksOnStart = true;
 
     private float _chunkSize;
+    public LoadingStatus worldLoadingStatus;
 
     public List<Chunk> Chunks
     {
         get { return _chunks.Values.ToList(); }
     }
 
+
     #region Initilization
 
     void Awake()
     {
         _chunkSize = (chunkPrefab.blockSize * chunkPrefab.chunkSize) / chunkPrefab.pixelUnitSize;
+        worldLoadingStatus = worldLoadingStatus == null ? gameObject.AddComponent<LoadingStatus>() : worldLoadingStatus;
 
         if (chunkPrefab == null)
         {
@@ -61,19 +74,22 @@ public class World : MonoBehaviour
         float chunkSize = chunkPrefab.chunkSize;
 
         int i = 0;
+        worldLoadingStatus.isLoading = true;
+        worldLoadingStatus.loadingText = "Loading Chunk";
+        worldLoadingStatus.finishAmount = chunksY * chunksX;
+        worldLoadingStatus.currentAmount = 0;
         for (int y = 0; y < chunksY; y++)
         {
             for (int x = 0; x < chunksX; x++)
             {
-                UIController.Instance.SetText("Loading chunk: " + i + " / " + (chunksY * chunksX), 1f);
-                CreateChunk(x, y);
+                worldLoadingStatus.Increment();
+                AddChunkAtindex(new Vector2(x, y));
                 i++;
                 if (i % 250 == 0)
                     yield return null;
             }
         }
 
-        if (!preloadChunks)
             StartCoroutine(RenderChunks());
     }
 
@@ -81,9 +97,12 @@ public class World : MonoBehaviour
     {
         int yield = 0;
         int i = 0;
+        worldLoadingStatus.loadingText = "Rendering";
+        worldLoadingStatus.currentAmount = 0;
+        worldLoadingStatus.finishAmount = _chunks.Values.Count;
         foreach (Chunk chunk in _chunks.Values)
         {
-            UIController.Instance.SetText("Rendering: " + i + " / " + _chunks.Values.Count, 1f);
+            worldLoadingStatus.Increment();
             chunk.RenderChunk();
             yield++;
             if (yield == renderBatch)
@@ -93,6 +112,8 @@ public class World : MonoBehaviour
             }
             i++;
         }
+
+        worldLoadingStatus.isLoading = false;
 
     }
 
@@ -136,8 +157,6 @@ public class World : MonoBehaviour
         if (!_chunks.ContainsKey(index))
         {
             Chunk chunk = CreateChunk(index);
-            //   chunk.SetupBoxColliders();
-            chunk.RenderChunk();
             return chunk;
         }
         return null;
@@ -167,16 +186,6 @@ public class World : MonoBehaviour
         Chunk chunk = GetChunkFromWorldPosition(position);
         if (chunk != null)
             chunk.SetBlockAtWorldPosition(position, block);
-    }
-
-
-    // TOOD LOOKING INTO THIS
-    public void SetBlockWorldPosition(Vector2 position, Vector2 blockIndex, Block block)
-    {
-        Vector2 setPos = position + blockIndex * (chunkPrefab.blockSize / 100f);
-        Chunk chunk = GetChunkFromWorldPosition(setPos);
-        if (chunk != null)
-            chunk.SetBlockAtWorldPosition(setPos, block);
     }
 
     /// <summary>
