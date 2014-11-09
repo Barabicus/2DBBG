@@ -5,6 +5,7 @@ public class Missile : MonoBehaviour
 {
 
     public Vector2 targetPos;
+    public int missileRadius = 10;
 
     void Start()
     {
@@ -22,9 +23,12 @@ public class Missile : MonoBehaviour
 
             foreach (ContactPoint2D contact in coll.contacts)
             {
-                 chunk.SetBlockAtContact(contact, null);
-                //Vector2 worldPos = chunk.IndexToWorldPosition(chunk.GetIndexFromContact(contact));
-                //chunk.SetBlockAtWorldPosition(worldPos, null);
+                Vector2 index = chunk.GetIndexFromContact(contact);
+
+                for (int a = 0; a < missileRadius; a++)
+                    for (int i = 0; i < 360; i++)
+                        chunk.SetBlockWorldPosition(new Vector2(contact.point.x + Mathf.Sin(i) * (chunk.BlockToWorldSize * a), contact.point.y + Mathf.Cos(i) * (chunk.BlockToWorldSize * a)), null);   
+
             }
 
             Destroy(gameObject);

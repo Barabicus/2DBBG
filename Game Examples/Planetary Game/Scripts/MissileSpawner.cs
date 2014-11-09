@@ -24,9 +24,7 @@ public class MissileSpawner : MonoBehaviour {
             for (int i = 0; i < Random.Range(spawnMinAmount, spawnMaxAmount); i++)
             {
                 float rotation = Random.Range(0, 360);
-                Transform t = Instantiate(missile, new Vector3(Mathf.Sin(rotation) * spawnRadius, Mathf.Cos(rotation) * spawnRadius, 0) + centerPoint.ToVector3(), Quaternion.identity) as Transform;
-
-
+                Instantiate(missile, new Vector3(Mathf.Sin(rotation) * spawnRadius, Mathf.Cos(rotation) * spawnRadius, 0) + centerPoint.ToVector3(), Quaternion.identity);
             }
         }
     }

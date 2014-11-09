@@ -33,11 +33,13 @@ public class Chunk : MonoBehaviour
     /// i.e. if the block size is 10, the chunk size is 10 and the pixel unit size is 100 each chunk will occupy 1 unit in space
     /// </summary>
     private float _chunkIndexSize;
-    private bool _isDirty = true;
+    public bool _isDirty = true;
+    private bool _applyTexture = false;
     private bool _isSpriteSetup = false;
     private float _lastTickTime;
     private World _world;
     private Vector2 _chunkIndex;
+    private bool _isInitialized;
 
     SpriteRenderer chunkSpriteRend;
 
@@ -51,6 +53,12 @@ public class Chunk : MonoBehaviour
     List<ITickable> updateableBuffer;
 
     public float pixelUnitSize = 100f;
+
+    #endregion
+
+    #region Events
+
+    public event Action<Chunk> ChunkReInitialized;
 
     #endregion
 
@@ -71,8 +79,14 @@ public class Chunk : MonoBehaviour
     public Vector2 ChunkIndex
     {
         get { return _chunkIndex; }
+        private set { _chunkIndex = value; }
     }
 
+    /// <summary>
+    /// The chunk index increments i.e. if the chunk in the world is at position (4, 0) and the chunk index size is 2
+    /// then the key to access the neighbouring chunk to the right will 4 + 2. Using this we can get the neighbouring chunk
+    /// via the world.
+    /// </summary>
     public float ChunkIndexSize
     {
         get { return (blockSize * chunkSize) / pixelUnitSize; }
@@ -94,6 +108,11 @@ public class Chunk : MonoBehaviour
     public float BlockToWorldSize
     {
         get { return blockSize / pixelUnitSize; }
+    }
+
+    public bool IsInitialized
+    {
+        get { return _isInitialized; }
     }
 
     #endregion
@@ -134,11 +153,25 @@ public class Chunk : MonoBehaviour
 
     public void Initialize()
     {
-        _chunkIndex = transform.position.ToVector2();
+        if (ChunkReInitialized != null)
+            ChunkReInitialized(this);
+
+        if (World == null)
+            Debug.LogWarning("Chunk World was null");
+
+        ChunkIndex = transform.position.ToVector2();
         _lastTickTime = Time.deltaTime;
         name = "Chunk" + ChunkIndex;
         IsDirty = true;
         GenerateChunk();
+        _isInitialized = true;
+
+        if (World != null)
+        {
+            // Add chunk to world if world exists
+            World.AddChunk(this);
+        }
+
     }
 
     /// <summary>
@@ -181,20 +214,27 @@ public class Chunk : MonoBehaviour
         }
     }
 
-    void IndexToCoord(float index, out int x, out int y)
-    {
-        x = Mathf.FloorToInt(index / chunkSize);
-        y = (int)(index % chunkSize);
-    }
-
-    int CoordToIndexPixel(int x, int y)
+    /// <summary>
+    /// Returns an index from a coordinate based on chunk * block size
+    /// </summary>
+    /// <param name="x"></param>
+    /// <param name="y"></param>
+    /// <returns></returns>
+    private int CoordToIndexPixel(int x, int y)
     {
         return ((chunkSize * blockSize) * y) + x;
     }
 
-    int CoordToIndex(int x, int y)
+    /// <summary>
+    /// Returns an index from a coordinate based on chunksize
+    /// </summary>
+    /// <param name="x"></param>
+    /// <param name="y"></param>
+    /// <returns></returns>
+
+    private int CoordToIndex(int x, int y)
     {
-        return (chunkSize * x) + y;
+        return (chunkSize * y) + x;
     }
 
     /// <summary>
@@ -237,7 +277,9 @@ public class Chunk : MonoBehaviour
     private bool IsBlockContained(int x, int y)
     {
         if (GetBlockAtIndex(x + 1, y) == null || GetBlockAtIndex(x, y + 1) == null || GetBlockAtIndex(x - 1, y) == null || GetBlockAtIndex(x, y - 1) == null)
+        {
             return false;
+        }
         else
             return true;
     }
@@ -248,7 +290,7 @@ public class Chunk : MonoBehaviour
         {
             for (int y = 0; y < chunkSize; y++)
             {
-                if (GetBlockAtIndex(x, y) == null || IsBlockContained(x,y))
+                if (GetBlockAtIndex(x, y) == null || IsBlockContained(x, y))
                     SetBlockCollision(x, y, false);
                 else
                     SetBlockCollision(x, y, true);
@@ -366,33 +408,7 @@ public class Chunk : MonoBehaviour
     {
         if (x < 0 || y < 0 || x >= blocks.GetLength(0) || y >= blocks.GetLength(1))
         {
-
-            int xIndex = 0;
-            int yIndex = 0;
-
-            if (x > 0)
-            {
-                xIndex = Mathf.FloorToInt(x / chunkSize);
-                x = x % chunkSize;
-            }
-            if (y > 0)
-            {
-                yIndex = Mathf.FloorToInt(y / chunkSize);
-                y = y % chunkSize;
-            }
-            if (x < 0)
-            {
-                xIndex = Mathf.CeilToInt(x / chunkSize) - 1;
-                x = (x % chunkSize) + chunkSize;
-            }
-            if (y < 0)
-            {
-                yIndex = Mathf.CeilToInt(y / chunkSize) - 1;
-                y = (y % chunkSize) + chunkSize;
-            }
-
-
-            Chunk otherChunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(xIndex, yIndex));
+            Chunk otherChunk = TranslateChunk(ref x, ref y);
             if (otherChunk != null)
                 return otherChunk.GetBlockAtIndex(x, y);
             else return null;
@@ -444,9 +460,12 @@ public class Chunk : MonoBehaviour
     public Vector2 WorldPositionToIndex(Vector2 position)
     {
         position -= transform.position.ToVector2();
-        Vector2 points = position;
-        Vector2 mod = new Vector2(points.x % (blockSize / pixelUnitSize), points.y % (blockSize / pixelUnitSize));
+        position *= pixelUnitSize;
+        Vector2 points = new Vector2(Mathf.Round(position.x), Mathf.Round(position.y));
+        // Vector2 points = position;
+        Vector2 mod = new Vector2(points.x % blockSize, points.y % blockSize);
         Vector2 index = points - mod;
+        index /= pixelUnitSize;
         index *= _chunkToWorldSize;
         return index;
     }
@@ -467,35 +486,13 @@ public class Chunk : MonoBehaviour
     /// <param name="index"></param>
     public void SetBlockAtIndex(int x, int y, Block block)
     {
+        // If the index is outside the bounds of this chunk try and translate that index to the proper chunk
+        // and change the block accordingly
         if (x < 0 || y < 0 || x >= blocks.GetLength(0) || y >= blocks.GetLength(1))
         {
-            int xIndex = 0;
-            int yIndex = 0;
-
-            if (x > 0)
-            {
-                xIndex = Mathf.FloorToInt(x / chunkSize);
-                x = x % chunkSize;
-            }
-            if (y > 0)
-            {
-                yIndex = Mathf.FloorToInt(y / chunkSize);
-                y = y % chunkSize;
-            }
-            if (x < 0)
-            {
-                xIndex = Mathf.CeilToInt(x / chunkSize) - 1;
-                x = (x % chunkSize) + chunkSize;
-            }
-            if (y < 0)
-            {
-                yIndex = Mathf.CeilToInt(y / chunkSize) - 1;
-                y = (y % chunkSize) + chunkSize;
-            }
-
-            Chunk otherChunk = World.GetChunkFromIndex(ChunkIndex + new Vector2(xIndex, yIndex));
+            Chunk otherChunk = TranslateChunk(ref x, ref y);
             if (otherChunk != null)
-                otherChunk.SetBlockAtIndex(x % chunkSize, y % chunkSize, block);
+                otherChunk.SetBlockAtIndex(x, y, block);
             else return;
         }
         else
@@ -514,7 +511,6 @@ public class Chunk : MonoBehaviour
                 if (block is ITickable)
                     updateableBuffer.Add(block as ITickable);
             }
-
 
             if (block != null)
             {
@@ -559,7 +555,7 @@ public class Chunk : MonoBehaviour
         if (x < 0 || y < 0 || x >= chunkSize || y >= chunkSize)
             return;
         else
-            boxColliders[CoordToIndex(x,y)].enabled = enabled;
+            boxColliders[CoordToIndex(x, y)].enabled = enabled;
     }
 
     /// <summary>
@@ -569,7 +565,7 @@ public class Chunk : MonoBehaviour
     /// <param name="block"></param>
     public void SetBlockAtContact(ContactPoint2D contact, Vector2 normal, Block block)
     {
-        SetBlockAtIndex(WorldPositionToIndex(contact.point + normal / (_chunkToWorldSize * 2)), block);
+        SetBlockAtIndex(GetIndexFromContact(contact), block);
     }
 
     public void SetBlockAtContact(ContactPoint2D contact, Block block)
@@ -579,8 +575,17 @@ public class Chunk : MonoBehaviour
 
     public Vector2 GetIndexFromContact(ContactPoint2D contact)
     {
-       // Debug.DrawRay(contact.point, -contact.normal / (_chunkToWorldSize * 2) * 20f, Color.red, 20f);
-        return WorldPositionToIndex(contact.point + -contact.normal / (_chunkToWorldSize * 2));
+        return WorldPositionToIndex(contact.point + RoundVector(-contact.normal / (_chunkToWorldSize * 2)));
+    }
+
+    /// <summary>
+    /// Returns the block the contact hit in world position
+    /// </summary>
+    /// <param name="contact"></param>
+    /// <returns></returns>
+    public Vector2 GetWorldBlockFromContact(ContactPoint2D contact)
+    {
+        return contact.point + RoundVector(-contact.normal / (_chunkToWorldSize * 2));
     }
 
     public void SetBlockAtIndex(Vector2 index, Block block)
@@ -588,7 +593,7 @@ public class Chunk : MonoBehaviour
         SetBlockAtIndex((int)index.x, (int)index.y, block);
     }
 
-    public void SetBlockAtWorldPosition(Vector2 position, Block block)
+    public void SetBlockWorldPosition(Vector2 position, Block block)
     {
         SetBlockAtIndex(WorldPositionToIndex(position), block);
     }
@@ -634,6 +639,56 @@ public class Chunk : MonoBehaviour
     }
 
     #endregion
+
+    #region Helper Methods
+
+    public Vector2 RoundVector(Vector2 vector)
+    {
+        return new Vector2(Round(vector.x), Round(vector.y));
+    }
+
+    public float Round(float value)
+    {
+        // Make sure to round up from 0.05
+        return Mathf.Round((value + (value > 0 ? 0.01f : -0.01f)) * 10f) / 10f;
+    }
+
+    /// <summary>
+    /// Translate the index positions x and y to the proper chunk in relation to this chunk. i.e x = -5 and the chunk size is 10 it will
+    /// translate to the chunk to the left of this chunk.
+    /// </summary>
+    /// <param name="x"></param>
+    /// <param name="y"></param>
+    /// <returns></returns>
+    public Chunk TranslateChunk(ref int x, ref int y)
+    {
+        int xIndex = 0;
+        int yIndex = 0;
+        if (x > 0)
+        {
+            xIndex = Mathf.FloorToInt((x / chunkSize) * _chunkIndexSize);
+            x = x % chunkSize;
+        }
+        if (y > 0)
+        {
+            yIndex = Mathf.FloorToInt( (y / chunkSize) * _chunkIndexSize);
+            y = y % chunkSize;
+        }
+        if (x < 0)
+        {
+            xIndex = Mathf.CeilToInt( (x / chunkSize) * _chunkIndexSize) - (int)_chunkIndexSize;
+            x = (x % chunkSize) + chunkSize;
+        }
+        if (y < 0)
+        {
+            yIndex = Mathf.CeilToInt( (y / chunkSize) *_chunkIndexSize) - (int)_chunkIndexSize;
+            y = (y % chunkSize) + chunkSize;
+        }
+
+        return World.GetChunkFromIndex(ChunkIndex + new Vector2(xIndex, yIndex));
+    }
+
+    #endregion
 }
 
 public struct ChunkEventArgs
@@ -649,5 +704,5 @@ public struct ChunkEventArgs
         this.block = block;
         this.texture = texture;
     }
-        
+
 }

@@ -37,6 +37,16 @@ public static class Vector3Extention
     {
         return new Vector3(vector.x, vector.y, 0);
     }
+
+    public static string ToStringProper(this Vector2 vector)
+    {
+        return "(" + vector.x + "," + vector.y + ")";
+    }
+
+    public static string ToStringProper(this Vector3 vector)
+    {
+        return "(" + vector.x + "," + vector.y + ")";
+    }
 }
 
 public static class MathfExtention

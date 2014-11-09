@@ -70,9 +70,6 @@ public class World : MonoBehaviour
 
     private IEnumerator SetupChunks()
     {
-        float blockSize = chunkPrefab.blockSize;
-        float chunkSize = chunkPrefab.chunkSize;
-
         int i = 0;
         worldLoadingStatus.isLoading = true;
         worldLoadingStatus.loadingText = "Loading Chunk";
@@ -83,14 +80,15 @@ public class World : MonoBehaviour
             for (int x = 0; x < chunksX; x++)
             {
                 worldLoadingStatus.Increment();
-                AddChunkAtindex(new Vector2(x, y));
+
+                CreateChunk(x, y);
                 i++;
                 if (i % 250 == 0)
                     yield return null;
             }
         }
 
-            StartCoroutine(RenderChunks());
+        StartCoroutine(RenderChunks());
     }
 
     private IEnumerator RenderChunks()
@@ -120,10 +118,11 @@ public class World : MonoBehaviour
     private Chunk CreateChunk(int x, int y)
     {
         Chunk chunk = Instantiate(chunkPrefab, transform.position + new Vector3(x * chunkPrefab.ChunkIndexSize, y * chunkPrefab.ChunkIndexSize, 0), Quaternion.identity) as Chunk;
+        chunk.World = this;
         chunk.InitialSetup();
         chunk.Initialize();
-        chunk.World = this;
-        _chunks.Add(chunk.ChunkIndex, chunk);
+        // Remove chunk from list if it has been reinitialized
+        chunk.ChunkReInitialized += (c) => { RemoveChunkAtIndex(c.ChunkIndex); };
         return chunk;
     }
 
@@ -143,23 +142,47 @@ public class World : MonoBehaviour
 
     public void RemoveChunkAtIndex(Vector2 index)
     {
-        Chunk ch;
-        _chunks.TryGetValue(index, out ch);
-        if (ch != null)
-        {
-            Destroy(ch.gameObject);
-        }
+        //Chunk ch;
+        //_chunks.TryGetValue(index, out ch);
+        //if (ch != null)
+        //{
+        //    Destroy(ch.gameObject);
+        //}
         _chunks.Remove(index);
     }
 
-    public Chunk AddChunkAtindex(Vector2 index)
+
+    /// <summary>
+    /// Add a chunk to the world. The chunk must be initialized before it can be added.
+    /// </summary>
+    /// <param name="chunk"></param>
+    /// <returns></returns>
+    public bool AddChunk(Chunk chunk)
     {
-        if (!_chunks.ContainsKey(index))
+        if (!_chunks.ContainsKey(chunk.ChunkIndex) && chunk.IsInitialized)
         {
-            Chunk chunk = CreateChunk(index);
-            return chunk;
+            _chunks.Add(chunk.ChunkIndex, chunk);
+            return true;
         }
-        return null;
+        else if (!chunk.IsInitialized)
+            Debug.LogWarning("Trying to add chunk which has not be initialized");
+        return false;
+    }
+
+    public void SetNeighbourChunksToDirty(Chunk chunk)
+    {
+        Chunk topChunk;
+        Chunk bottomChunk;
+        Chunk leftChunk;
+        Chunk rightChunk;
+        if (_chunks.TryGetValue(chunk.ChunkIndex + new Vector2(0, chunk.ChunkIndexSize), out topChunk))
+            topChunk.IsDirty = true;
+        if (_chunks.TryGetValue(chunk.ChunkIndex + new Vector2(0, -chunk.ChunkIndexSize), out bottomChunk))
+            bottomChunk.IsDirty = true;
+        if (_chunks.TryGetValue(chunk.ChunkIndex + new Vector2(-chunk.ChunkIndexSize, 0), out leftChunk))
+            leftChunk.IsDirty = true;
+        if (_chunks.TryGetValue(chunk.ChunkIndex + new Vector2(chunk.ChunkIndexSize, 0), out rightChunk))
+            rightChunk.IsDirty = true;
     }
 
     /// <summary>
@@ -185,7 +208,7 @@ public class World : MonoBehaviour
     {
         Chunk chunk = GetChunkFromWorldPosition(position);
         if (chunk != null)
-            chunk.SetBlockAtWorldPosition(position, block);
+            chunk.SetBlockWorldPosition(position, block);
     }
 
     /// <summary>

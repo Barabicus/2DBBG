@@ -13,7 +13,8 @@ public class DebugBlock : Block, ITickable {
         Vector2 index;
         if (chunk.GetIndexFromBlock(this, out index))
         {
-
+            chunk.SetBlockAtIndex(index, null);
+            chunk.SetBlockAtIndex(index + new Vector2(1, 0), new DebugBlock());
         }
     }
 }

@@ -24,8 +24,6 @@ public class CamFollowInspector : Editor
 
     public override void OnInspectorGUI()
     {
-        CamFollow2D cam = (CamFollow2D)target;
-
         serializedObject.Update();
 
         EditorGUILayout.PropertyField(followTarget, new GUIContent("Target To Follow", "The Target the camera should follow"));
