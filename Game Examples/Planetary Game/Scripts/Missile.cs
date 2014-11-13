@@ -25,14 +25,25 @@ public class Missile : MonoBehaviour
             {
                 Vector2 index = chunk.GetIndexFromContact(contact);
 
-                for (int a = 0; a < missileRadius; a++)
-                    for (int i = 0; i < 360; i++)
-                        chunk.SetBlockWorldPosition(new Vector2(contact.point.x + Mathf.Sin(i) * (chunk.BlockToWorldSize * a), contact.point.y + Mathf.Cos(i) * (chunk.BlockToWorldSize * a)), null);   
+                //for (int a = 0; a < missileRadius; a++)
+                //    for (int i = 0; i < 360; i++)
+                //        chunk.SetBlockWorldPosition(new Vector2(contact.point.x + Mathf.Sin(i) * (chunk.BlockToWorldSize * a), contact.point.y + Mathf.Cos(i) * (chunk.BlockToWorldSize * a)), null);  
+
+                chunk.SetBlockAtIndex(index, null);
+
+                for(int x = -missileRadius; x < missileRadius; x++)
+                    for(int y = -missileRadius; y < missileRadius; y++)
+                        chunk.SetBlockAtIndex(index + new Vector2(x,y), null);
+
+                //for (int a = 0; a < missileRadius; a++)
+                //    for (int i = 0; i < 360; i++)
+                //        chunk.SetBlockAtIndex(index + new Vector2(a + Mathf.Round(Mathf.Sin(i)), a + Mathf.Round(Mathf.Cos(i))), null);
+
 
             }
-
-            Destroy(gameObject);
         }
+        Destroy(gameObject);
+
     }
 
     void Update()

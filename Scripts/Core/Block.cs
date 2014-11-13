@@ -12,8 +12,16 @@ public abstract class Block
     }
 
     public abstract Color BlockColor { get; }
-
     public virtual void OnCreate(Chunk chunk) { }
     public virtual void OnDestroy(Chunk chunk) { }
+    public virtual void OnNeighbourChange(BlockNeighbour blockChanged) { }
 
+}
+
+public enum BlockNeighbour
+{
+    Top,
+    Right,
+    Bottom,
+    Left
 }

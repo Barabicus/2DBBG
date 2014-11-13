@@ -15,7 +15,6 @@ public class Chunk : MonoBehaviour
     public bool useThreading = true;
     public float tickTime = 2f;
     public ChunkGenerator generator;
-    public bool autoGenerateOnStart = false;
 
 
     /// <summary>
@@ -33,21 +32,21 @@ public class Chunk : MonoBehaviour
     /// i.e. if the block size is 10, the chunk size is 10 and the pixel unit size is 100 each chunk will occupy 1 unit in space
     /// </summary>
     private float _chunkIndexSize;
-    public bool _isDirty = true;
-    private bool _applyTexture = false;
+    private bool _isDirty = true;
     private bool _isSpriteSetup = false;
     private float _lastTickTime;
     private World _world;
     private Vector2 _chunkIndex;
     private bool _isInitialized;
+    private bool _isGenerated;
 
     SpriteRenderer chunkSpriteRend;
 
     Block[,] blocks;
     public BoxCollider2D[] boxColliders;
 
-    Texture2D texture;
-    Color[] texturePixels;
+    public Texture2D texture;
+    public Color[] texturePixels;
 
     List<ITickable> updateables;
     List<ITickable> updateableBuffer;
@@ -64,18 +63,37 @@ public class Chunk : MonoBehaviour
 
     #region Properties
 
+    /// <summary>
+    /// Is the chunk dirty, if it is redraw the chunk and update all chunk colliders
+    /// </summary>
     public bool IsDirty
     {
         get { return _isDirty; }
         set { _isDirty = value; }
     }
 
+    public bool IsGenerated
+    {
+        get { return _isGenerated; }
+        set
+        {
+            _isGenerated = true;
+            DrawAllBlocks();
+        }
+    }
+
+    /// <summary>
+    /// The world this chunk is associated with
+    /// </summary>
     public World World
     {
         get { return _world; }
         set { _world = value; }
     }
 
+    /// <summary>
+    /// The index position of this chunk
+    /// </summary>
     public Vector2 ChunkIndex
     {
         get { return _chunkIndex; }
@@ -110,6 +128,9 @@ public class Chunk : MonoBehaviour
         get { return blockSize / pixelUnitSize; }
     }
 
+    /// <summary>
+    /// Has the chunk been initialized. Chunks can be ReInitialized as many times as desired.
+    /// </summary>
     public bool IsInitialized
     {
         get { return _isInitialized; }
@@ -118,15 +139,6 @@ public class Chunk : MonoBehaviour
     #endregion
 
     #region Initialization
-
-    void Start()
-    {
-        if (autoGenerateOnStart)
-        {
-            InitialSetup();
-            Initialize();
-        }
-    }
 
     public void InitialSetup()
     {
@@ -151,6 +163,9 @@ public class Chunk : MonoBehaviour
 
     }
 
+    /// <summary>
+    /// This initializes the chunk and sets it up for use with the world.
+    /// </summary>
     public void Initialize()
     {
         if (ChunkReInitialized != null)
@@ -163,23 +178,37 @@ public class Chunk : MonoBehaviour
         _lastTickTime = Time.deltaTime;
         name = "Chunk" + ChunkIndex;
         IsDirty = true;
+        _isGenerated = false;
         GenerateChunk();
         _isInitialized = true;
 
         if (World != null)
         {
-            // Add chunk to world if world exists
+            //// Add chunk to world if world exists
+            //if (!World.AddChunk(this))
+            //{
+            //    Debug.LogError("Chunk could not be added to the world, world already has chunk index  " + ChunkIndex);
+            //    Destroy(gameObject);
+            //}
             World.AddChunk(this);
         }
 
     }
 
+    public void GenerateChunk()
+    {
+        if (useThreading)
+            ThreadPool.QueueUserWorkItem(GenerateChunk);
+        else
+            GenerateChunk(transform.position);
+    }
+
     /// <summary>
     /// Generate chunk from chunk generator
     /// </summary>
-    public void GenerateChunk()
+    private void GenerateChunk(object context)
     {
-        Vector2 position = transform.position.ToVector2();
+        Vector2 position = ChunkIndex;
         for (int x = 0; x < blocks.GetLength(0); x++)
         {
             for (int y = 0; y < blocks.GetLength(1); y++)
@@ -187,7 +216,9 @@ public class Chunk : MonoBehaviour
                 blocks[x, y] = generator.GenerateBlock(((position.x * _chunkToWorldSize) + x) * BlockToWorldSize, ((position.y * _chunkToWorldSize) + y) * BlockToWorldSize);
             }
         }
+        IsGenerated = true;
     }
+
 
     /// <summary>
     /// Generate chunk colliders
@@ -220,7 +251,7 @@ public class Chunk : MonoBehaviour
     /// <param name="x"></param>
     /// <param name="y"></param>
     /// <returns></returns>
-    private int CoordToIndexPixel(int x, int y)
+    private int CoordToBroadIndex(int x, int y)
     {
         return ((chunkSize * blockSize) * y) + x;
     }
@@ -232,7 +263,7 @@ public class Chunk : MonoBehaviour
     /// <param name="y"></param>
     /// <returns></returns>
 
-    private int CoordToIndex(int x, int y)
+    private int CoordToNarrowIndex(int x, int y)
     {
         return (chunkSize * y) + x;
     }
@@ -240,12 +271,12 @@ public class Chunk : MonoBehaviour
     /// <summary>
     /// Render entire chunk
     /// </summary>
-    public void RenderChunk()
+    public void SetupGraphics()
     {
         // Create the sprite
         chunkSpriteRend.sprite = Sprite.Create(texture, new Rect(0, 0, blockSize * chunkSize, blockSize * chunkSize), Vector2.zero);
 
-        DrawAllBlocks();
+     //   DrawAllBlocks();
 
         texture.Apply();
 
@@ -256,12 +287,19 @@ public class Chunk : MonoBehaviour
 
     #region Collision
 
+    /// <summary>
+    /// Create collider at index x, y
+    /// </summary>
+    /// <param name="x"></param>
+    /// <param name="y"></param>
     private void CreateCollider(int x, int y)
     {
-        int index = CoordToIndex(x, y);
+        int index = CoordToNarrowIndex(x, y);
         if (boxColliders[index] == null)
         {
             boxColliders[index] = gameObject.AddComponent<BoxCollider2D>();
+            // Hide box components in the inspector
+            boxColliders[index].hideFlags = HideFlags.HideInInspector;
             boxColliders[index].center = new Vector2(((x * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2, ((y * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2);
             boxColliders[index].size = new Vector2(blockSize / pixelUnitSize, blockSize / pixelUnitSize);
             boxColliders[index].enabled = false;
@@ -284,6 +322,9 @@ public class Chunk : MonoBehaviour
             return true;
     }
 
+    /// <summary>
+    /// Updates all the colliders
+    /// </summary>
     private void UpdateColliders()
     {
         for (int x = 0; x < chunkSize; x++)
@@ -298,6 +339,11 @@ public class Chunk : MonoBehaviour
         }
     }
 
+    private void UpdateColliders(object o)
+    {
+        UpdateColliders();
+    }
+
     #endregion
 
     #region Drawing
@@ -309,17 +355,20 @@ public class Chunk : MonoBehaviour
     /// <param name="y"></param>
     /// <param name="color"></param>
     /// <param name="texture"></param>
-    private void DrawBlock(int x, int y, Block block, Texture2D texture)
+    private void DrawBlock(int x, int y, Block block)
     {
-        for (int xx = 0; xx < blockSize; xx++)
-        {
-            for (int yy = 0; yy < blockSize; yy++)
+        if (!useThreading)
+            for (int xx = 0; xx < blockSize; xx++)
             {
-                texturePixels[CoordToIndexPixel((x * blockSize) + xx, (y * blockSize) + yy)] = block != null ? block.BlockColor : Color.clear;
+                for (int yy = 0; yy < blockSize; yy++)
+                {
+                    texturePixels[CoordToBroadIndex((x * blockSize) + xx, (y * blockSize) + yy)] = block != null ? block.BlockColor : Color.clear;
+                }
             }
+        else
+        {
+            ThreadPool.QueueUserWorkItem(DrawBlockThreaded, new ChunkEventArgs(x, y, block, texture));
         }
-        //ChunkEventArgs eventArgs = new ChunkEventArgs(x, y, block, texture);
-        //ThreadPool.QueueUserWorkItem(DrawBlockThreaded, eventArgs);
     }
 
     private void DrawBlockThreaded(object context)
@@ -329,7 +378,7 @@ public class Chunk : MonoBehaviour
         {
             for (int yy = 0; yy < blockSize; yy++)
             {
-                texturePixels[CoordToIndexPixel((ch.x * blockSize) + xx, (ch.y * blockSize) + yy)] = ch.block != null ? ch.block.BlockColor : Color.clear;
+                texturePixels[CoordToBroadIndex((ch.x * blockSize) + xx, (ch.y * blockSize) + yy)] = ch.block != null ? ch.block.BlockColor : Color.clear;
             }
         }
         IsDirty = true;
@@ -341,25 +390,31 @@ public class Chunk : MonoBehaviour
     /// <param name="index"></param>
     /// <param name="color"></param>
     /// <param name="texture"></param>
-    private void DrawBlock(Vector2 index, Block block, Texture2D texture)
+    private void DrawBlock(Vector2 index, Block block)
     {
-        DrawBlock((int)index.x, (int)index.y, block, texture);
+        DrawBlock((int)index.x, (int)index.y, block);
         IsDirty = true;
     }
 
+    /// <summary>
+    /// Draw all the blocks in this chunk
+    /// </summary>
+    /// <param name="context"></param>
     private void DrawAllBlocks(object context)
     {
-
         for (int x = 0; x < chunkSize; x++)
         {
             for (int y = 0; y < chunkSize; y++)
             {
-                DrawBlock(x, y, blocks[x, y], texture);
+                DrawBlock(x, y, blocks[x, y]);
             }
         }
         IsDirty = true;
     }
 
+    /// <summary>
+    /// Draw all the blocks in this chunk
+    /// </summary>
     public void DrawAllBlocks()
     {
         if (useThreading)
@@ -414,14 +469,6 @@ public class Chunk : MonoBehaviour
             else return null;
         }
 
-        else
-            return blocks[x, y];
-    }
-
-    public Block GetBlockAtLocalIndex(int x, int y)
-    {
-        if (x < 0 || y < 0 || x >= blocks.GetLength(0) || y >= blocks.GetLength(1))
-            return null;
         else
             return blocks[x, y];
     }
@@ -483,7 +530,6 @@ public class Chunk : MonoBehaviour
     /// <summary>
     /// Sets the block at index. Set block to null to destroy it
     /// </summary>
-    /// <param name="index"></param>
     public void SetBlockAtIndex(int x, int y, Block block)
     {
         // If the index is outside the bounds of this chunk try and translate that index to the proper chunk
@@ -502,6 +548,7 @@ public class Chunk : MonoBehaviour
                 // If block implemented IUpdateable remove it from the list
                 if (blocks[x, y] is ITickable)
                     updateables.Remove(blocks[x, y] as ITickable);
+
                 blocks[x, y].OnDestroy(this);
             }
 
@@ -517,7 +564,7 @@ public class Chunk : MonoBehaviour
                 block.OnCreate(this);
             }
 
-            DrawBlock(x, y, block, texture);
+            DrawBlock(x, y, block);
             IsDirty = true;
 
             // Set neighbour chunks to dirty
@@ -549,17 +596,30 @@ public class Chunk : MonoBehaviour
         }
     }
 
+    /// <summary>
+    /// Sets the block at index. Set block to null to destroy it
+    /// </summary>
+    public void SetBlockAtIndex(Vector2 index, Block block)
+    {
+        SetBlockAtIndex((int)index.x, (int)index.y, block);
+    }
 
+    /// <summary>
+    /// Turns a block collider on or off
+    /// </summary>
+    /// <param name="x"></param>
+    /// <param name="y"></param>
+    /// <param name="enabled"></param>
     public void SetBlockCollision(int x, int y, bool enabled)
     {
         if (x < 0 || y < 0 || x >= chunkSize || y >= chunkSize)
             return;
         else
-            boxColliders[CoordToIndex(x, y)].enabled = enabled;
+            boxColliders[CoordToNarrowIndex(x, y)].enabled = enabled;
     }
 
     /// <summary>
-    /// Set at the contact point. This should not be called internally.
+    /// Set block at the contact point.
     /// </summary>
     /// <param name="contact"></param>
     /// <param name="block"></param>
@@ -568,14 +628,24 @@ public class Chunk : MonoBehaviour
         SetBlockAtIndex(GetIndexFromContact(contact), block);
     }
 
+    /// <summary>
+    /// Set block at the contact point
+    /// </summary>
+    /// <param name="contact"></param>
+    /// <param name="block"></param>
     public void SetBlockAtContact(ContactPoint2D contact, Block block)
     {
         SetBlockAtContact(contact, -contact.normal, block);
     }
 
+    /// <summary>
+    /// Get the block index from the contact point
+    /// </summary>
+    /// <param name="contact"></param>
+    /// <returns></returns>
     public Vector2 GetIndexFromContact(ContactPoint2D contact)
     {
-        return WorldPositionToIndex(contact.point + RoundVector(-contact.normal / (_chunkToWorldSize * 2)));
+        return WorldPositionToIndex(contact.point + -contact.normal / (_chunkToWorldSize * 2));
     }
 
     /// <summary>
@@ -583,16 +653,16 @@ public class Chunk : MonoBehaviour
     /// </summary>
     /// <param name="contact"></param>
     /// <returns></returns>
-    public Vector2 GetWorldBlockFromContact(ContactPoint2D contact)
+    public Vector2 GetWorldPositionFromContact(ContactPoint2D contact)
     {
         return contact.point + RoundVector(-contact.normal / (_chunkToWorldSize * 2));
     }
 
-    public void SetBlockAtIndex(Vector2 index, Block block)
-    {
-        SetBlockAtIndex((int)index.x, (int)index.y, block);
-    }
-
+    /// <summary>
+    /// Sets a block at world position
+    /// </summary>
+    /// <param name="position"></param>
+    /// <param name="block"></param>
     public void SetBlockWorldPosition(Vector2 position, Block block)
     {
         SetBlockAtIndex(WorldPositionToIndex(position), block);
@@ -602,7 +672,7 @@ public class Chunk : MonoBehaviour
 
     #region Unity Methods
 
-    protected virtual void Update()
+    private void Update()
     {
         if (Time.time - _lastTickTime >= tickTime)
             Tick();
@@ -614,7 +684,7 @@ public class Chunk : MonoBehaviour
             updateableBuffer.Remove(updateableBuffer[i]);
         }
 
-        if (IsDirty && _isSpriteSetup)
+        if (IsDirty && _isSpriteSetup && IsGenerated)
         {
             texture.SetPixels(texturePixels);
             texture.Apply();
@@ -623,10 +693,14 @@ public class Chunk : MonoBehaviour
         }
     }
 
+
     #endregion
 
     #region Chunk
 
+    /// <summary>
+    /// Trigger a chunk tick
+    /// </summary>
     private void Tick()
     {
         // Update all updateable blocks
@@ -671,17 +745,17 @@ public class Chunk : MonoBehaviour
         }
         if (y > 0)
         {
-            yIndex = Mathf.FloorToInt( (y / chunkSize) * _chunkIndexSize);
+            yIndex = Mathf.FloorToInt((y / chunkSize) * _chunkIndexSize);
             y = y % chunkSize;
         }
         if (x < 0)
         {
-            xIndex = Mathf.CeilToInt( (x / chunkSize) * _chunkIndexSize) - (int)_chunkIndexSize;
+            xIndex = Mathf.CeilToInt((x / chunkSize) * _chunkIndexSize) - (int)_chunkIndexSize;
             x = (x % chunkSize) + chunkSize;
         }
         if (y < 0)
         {
-            yIndex = Mathf.CeilToInt( (y / chunkSize) *_chunkIndexSize) - (int)_chunkIndexSize;
+            yIndex = Mathf.CeilToInt((y / chunkSize) * _chunkIndexSize) - (int)_chunkIndexSize;
             y = (y % chunkSize) + chunkSize;
         }
 

@@ -1,5 +1,6 @@
 ﻿using UnityEngine;
 using System.Collections;
+using System;
 
 public class LoadingStatus : MonoBehaviour
 {
@@ -7,6 +8,7 @@ public class LoadingStatus : MonoBehaviour
     public string loadingText;
     public int currentAmount;
     public int finishAmount;
+    public event Action loadingFinished;
 
     public string FormattedLoadingText
     {
@@ -16,6 +18,11 @@ public class LoadingStatus : MonoBehaviour
     public void Increment()
     {
         currentAmount++;
+        if (currentAmount == finishAmount && loadingFinished != null)
+        {
+            loadingFinished();
+            loadingFinished = null;
+        }
     }
 
 }

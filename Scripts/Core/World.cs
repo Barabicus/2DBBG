@@ -55,7 +55,10 @@ public class World : MonoBehaviour
         if (loadChunksOnStart)
         {
             if (!preloadChunks)
+            {
+                worldLoadingStatus.loadingFinished += () => { StartCoroutine(RenderChunks()); };
                 StartCoroutine(SetupChunks());
+            }
             else
             {
                 // Setup Chunks
@@ -65,7 +68,6 @@ public class World : MonoBehaviour
                 while (r.MoveNext() != false) ;
             }
         }
-
     }
 
     private IEnumerator SetupChunks()
@@ -79,16 +81,14 @@ public class World : MonoBehaviour
         {
             for (int x = 0; x < chunksX; x++)
             {
-                worldLoadingStatus.Increment();
-
                 CreateChunk(x, y);
                 i++;
                 if (i % 250 == 0)
                     yield return null;
+
+                worldLoadingStatus.Increment();
             }
         }
-
-        StartCoroutine(RenderChunks());
     }
 
     private IEnumerator RenderChunks()
@@ -101,7 +101,7 @@ public class World : MonoBehaviour
         foreach (Chunk chunk in _chunks.Values)
         {
             worldLoadingStatus.Increment();
-            chunk.RenderChunk();
+            chunk.SetupGraphics();
             yield++;
             if (yield == renderBatch)
             {
@@ -122,7 +122,7 @@ public class World : MonoBehaviour
         chunk.InitialSetup();
         chunk.Initialize();
         // Remove chunk from list if it has been reinitialized
-        chunk.ChunkReInitialized += (c) => { RemoveChunkAtIndex(c.ChunkIndex); };
+      //  chunk.ChunkReInitialized += (c) => { RemoveChunkAtIndex(c.ChunkIndex); };
         return chunk;
     }
 
@@ -142,13 +142,8 @@ public class World : MonoBehaviour
 
     public void RemoveChunkAtIndex(Vector2 index)
     {
-        //Chunk ch;
-        //_chunks.TryGetValue(index, out ch);
-        //if (ch != null)
-        //{
-        //    Destroy(ch.gameObject);
-        //}
-        _chunks.Remove(index);
+        if (!_chunks.Remove(index))
+            Debug.LogWarning("Trying to remove chunk that does not exist " + index);
     }
 
 
@@ -164,7 +159,7 @@ public class World : MonoBehaviour
             _chunks.Add(chunk.ChunkIndex, chunk);
             return true;
         }
-        else if (!chunk.IsInitialized)
+        if (!chunk.IsInitialized)
             Debug.LogWarning("Trying to add chunk which has not be initialized");
         return false;
     }
@@ -249,7 +244,7 @@ public class World : MonoBehaviour
 
     #endregion
 
-    #region Helper Methods
+    #region Indexing
 
     /// <summary>
     /// Converts a world position into a chunk index
@@ -263,6 +258,11 @@ public class World : MonoBehaviour
         return position;
     }
 
+    /// <summary>
+    /// Converts a world position into a chunk index
+    /// </summary>
+    /// <param name="position"></param>
+    /// <returns></returns>
     public Vector2 WorldPositionToChunkIndex(Vector3 position)
     {
         return WorldPositionToChunkIndex(position.ToVector2());
@@ -272,21 +272,6 @@ public class World : MonoBehaviour
 
     #region Unity Methods
 
-    public void Update()
-    {
-        if (Input.GetMouseButtonDown(0))
-        {
-            //SetBlockWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition), new VineBlock());
-        }
-        if (Input.GetMouseButtonDown(1))
-        {
-            SetBlockWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition), new VineBlock());
-        }
-        if (Input.GetMouseButton(2))
-        {
-            SetBlockWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition), new StandardBlock());
-        }
-    }
 
     #endregion
 }
