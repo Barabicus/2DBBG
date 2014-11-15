@@ -20,8 +20,8 @@ public class Bullet : MonoBehaviour {
                 Chunk ch = col.gameObject.GetComponent<Chunk>();
                 ch.SetBlockAtContact(contact, null);
             }
+            Destroy(gameObject);
         }
-        Destroy(gameObject);
     }
 
     IEnumerator Destroy()
