@@ -15,6 +15,7 @@ public class Chunk : MonoBehaviour
     public bool useThreading = true;
     public float tickTime = 2f;
     public ChunkGenerator generator;
+    public UpdateMethod updateMethod = UpdateMethod.Update;
 
 
     /// <summary>
@@ -58,6 +59,16 @@ public class Chunk : MonoBehaviour
     #region Events
 
     public event Action<Chunk> ChunkReInitialized;
+
+    #endregion
+
+    #region States
+
+    public enum UpdateMethod
+    {
+        Update,
+        FixedUpdate
+    }
 
     #endregion
 
@@ -673,6 +684,18 @@ public class Chunk : MonoBehaviour
     #region Unity Methods
 
     private void Update()
+    {
+        if (updateMethod == UpdateMethod.Update)
+            UpdateChunk();
+    }
+
+    private void FixedUpdate()
+    {
+        if (updateMethod == UpdateMethod.FixedUpdate)
+            UpdateChunk();
+    }
+
+    private void UpdateChunk()
     {
         if (Time.time - _lastTickTime >= tickTime)
             Tick();
