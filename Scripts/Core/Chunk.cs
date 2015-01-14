@@ -5,7 +5,7 @@ using System.Collections.Generic;
 using System.Threading;
 
 [RequireComponent(typeof(SpriteRenderer))]
-[RequireComponent(typeof(Rigidbody2D))]
+//[RequireComponent(typeof(Rigidbody2D))]
 public class Chunk : MonoBehaviour
 {
 
@@ -153,7 +153,7 @@ public class Chunk : MonoBehaviour
 
     public void InitialSetup()
     {
-        rigidbody2D.isKinematic = true;
+      //  rigidbody2D.isKinematic = true;
 
         // How many blocks in a chunk is based on the chunksize
         blocks = new Block[chunkSize, chunkSize];
@@ -185,7 +185,7 @@ public class Chunk : MonoBehaviour
         if (World == null)
             Debug.LogWarning("Chunk World was null");
 
-        ChunkIndex = transform.position.ToVector2();
+        ChunkIndex = transform.position.ToVector2() - World.transform.position.ToVector2();
         _lastTickTime = Time.deltaTime;
         name = "Chunk" + ChunkIndex;
         IsDirty = true;
@@ -220,11 +220,14 @@ public class Chunk : MonoBehaviour
     private void GenerateChunk(object context)
     {
         Vector2 position = ChunkIndex;
-        for (int x = 0; x < blocks.GetLength(0); x++)
+        if (generator != null)
         {
-            for (int y = 0; y < blocks.GetLength(1); y++)
+            for (int x = 0; x < blocks.GetLength(0); x++)
             {
-                blocks[x, y] = generator.GenerateBlock(((position.x * _chunkToWorldSize) + x) * BlockToWorldSize, ((position.y * _chunkToWorldSize) + y) * BlockToWorldSize);
+                for (int y = 0; y < blocks.GetLength(1); y++)
+                {
+                    blocks[x, y] = generator.GenerateBlock(((position.x * _chunkToWorldSize) + x) * BlockToWorldSize, ((position.y * _chunkToWorldSize) + y) * BlockToWorldSize);
+                }
             }
         }
         IsGenerated = true;
@@ -666,7 +669,7 @@ public class Chunk : MonoBehaviour
     /// <returns></returns>
     public Vector2 GetWorldPositionFromContact(ContactPoint2D contact)
     {
-        return contact.point + RoundVector(-contact.normal / (_chunkToWorldSize * 2));
+        return contact.point + (-contact.normal / (_chunkToWorldSize * 2)).RoundVector();
     }
 
     /// <summary>
@@ -738,11 +741,6 @@ public class Chunk : MonoBehaviour
     #endregion
 
     #region Helper Methods
-
-    public Vector2 RoundVector(Vector2 vector)
-    {
-        return new Vector2(Round(vector.x), Round(vector.y));
-    }
 
     public float Round(float value)
     {

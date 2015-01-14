@@ -35,6 +35,11 @@ public static class Vector3Extention
     {
         return "(" + vector.x + "," + vector.y + ")";
     }
+
+    public static Vector2 RoundVector(this Vector2 vector)
+    {
+        return new Vector2(Mathf.Round(vector.x), Mathf.Round(vector.y));
+    }
 }
 
 public static class MathfExtention

@@ -121,8 +121,9 @@ public class World : MonoBehaviour
         chunk.World = this;
         chunk.InitialSetup();
         chunk.Initialize();
+        chunk.transform.parent = transform;
         // Remove chunk from list if it has been reinitialized
-      //  chunk.ChunkReInitialized += (c) => { RemoveChunkAtIndex(c.ChunkIndex); };
+        //  chunk.ChunkReInitialized += (c) => { RemoveChunkAtIndex(c.ChunkIndex); };
         return chunk;
     }
 
@@ -253,6 +254,7 @@ public class World : MonoBehaviour
     /// <returns></returns>
     public Vector2 WorldPositionToChunkIndex(Vector2 position)
     {
+        position -= transform.position.ToVector2();
         Vector2 mod = new Vector2(position.x % _chunkSize, position.y % _chunkSize);
         position -= mod;
         return position;
@@ -267,11 +269,6 @@ public class World : MonoBehaviour
     {
         return WorldPositionToChunkIndex(position.ToVector2());
     }
-
-    #endregion
-
-    #region Unity Methods
-
 
     #endregion
 }
