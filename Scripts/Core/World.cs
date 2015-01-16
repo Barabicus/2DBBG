@@ -40,7 +40,7 @@ public class World : MonoBehaviour
 
     void Awake()
     {
-        _chunkSize = (chunkPrefab.blockSize * chunkPrefab.chunkSize) / chunkPrefab.pixelUnitSize;
+        _chunkSize = (chunkPrefab.blockSize * chunkPrefab.chunkSize) / chunkPrefab.PixelUnitSize;
         worldLoadingStatus = worldLoadingStatus == null ? gameObject.AddComponent<LoadingStatus>() : worldLoadingStatus;
 
         if (chunkPrefab == null)

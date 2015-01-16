@@ -5,18 +5,18 @@ using System.Collections.Generic;
 using System.Threading;
 
 [RequireComponent(typeof(SpriteRenderer))]
-//[RequireComponent(typeof(Rigidbody2D))]
 public class Chunk : MonoBehaviour
 {
 
     #region Fields
-    public int blockSize = 10;
-    public int chunkSize = 10;
+    public int blockSize = 16;
+    public int chunkSize = 16;
     public bool useThreading = true;
+    public bool tick = true;
     public float tickTime = 2f;
     public ChunkGenerator generator;
     public UpdateMethod updateMethod = UpdateMethod.Update;
-
+    public bool useColliders = true;
 
     /// <summary>
     /// This is how much space a chunk occupies in world space either horizontally or vertically
@@ -43,16 +43,22 @@ public class Chunk : MonoBehaviour
 
     SpriteRenderer chunkSpriteRend;
 
-    Block[,] blocks;
+    [HideInInspector]
+    public Block[,] blocks;
+    [HideInInspector]
     public BoxCollider2D[] boxColliders;
 
+    [HideInInspector]
     public Texture2D texture;
+    [HideInInspector]
     public Color[] texturePixels;
 
-    List<ITickable> updateables;
-    List<ITickable> updateableBuffer;
+    public float pixelUnitSize = 128f;
 
-    public float pixelUnitSize = 100f;
+    public float PixelUnitSize
+    {
+        get { return pixelUnitSize; }
+    }
 
     #endregion
 
@@ -118,7 +124,7 @@ public class Chunk : MonoBehaviour
     /// </summary>
     public float ChunkIndexSize
     {
-        get { return (blockSize * chunkSize) / pixelUnitSize; }
+        get { return (blockSize * chunkSize) / PixelUnitSize; }
     }
 
     /// <summary>
@@ -126,7 +132,7 @@ public class Chunk : MonoBehaviour
     /// </summary>
     public float ChunkToWorldSize
     {
-        get { return pixelUnitSize / blockSize; }
+        get { return PixelUnitSize / blockSize; }
     }
 
     /// <summary>
@@ -136,7 +142,7 @@ public class Chunk : MonoBehaviour
     /// </summary>
     public float BlockToWorldSize
     {
-        get { return blockSize / pixelUnitSize; }
+        get { return blockSize / PixelUnitSize; }
     }
 
     /// <summary>
@@ -153,18 +159,16 @@ public class Chunk : MonoBehaviour
 
     public void InitialSetup()
     {
-      //  rigidbody2D.isKinematic = true;
+        //  rigidbody2D.isKinematic = true;
 
         // How many blocks in a chunk is based on the chunksize
         blocks = new Block[chunkSize, chunkSize];
-        updateables = new List<ITickable>();
-        updateableBuffer = new List<ITickable>();
 
         chunkSpriteRend = gameObject.GetComponent<SpriteRenderer>();
 
-        _chunkToWorldSize = pixelUnitSize / blockSize;
-        _blockToWorldSize = blockSize / pixelUnitSize;
-        _chunkIndexSize = (blockSize * chunkSize) / pixelUnitSize;
+        _chunkToWorldSize = PixelUnitSize / blockSize;
+        _blockToWorldSize = blockSize / PixelUnitSize;
+        _chunkIndexSize = (blockSize * chunkSize) / PixelUnitSize;
 
         // Set the size of the texture based on the block size and the chunk size
         texture = new Texture2D(blockSize * chunkSize, blockSize * chunkSize);
@@ -206,18 +210,10 @@ public class Chunk : MonoBehaviour
 
     }
 
-    public void GenerateChunk()
-    {
-        if (useThreading)
-            ThreadPool.QueueUserWorkItem(GenerateChunk);
-        else
-            GenerateChunk(transform.position);
-    }
-
     /// <summary>
     /// Generate chunk from chunk generator
     /// </summary>
-    private void GenerateChunk(object context)
+    private void GenerateChunk()
     {
         Vector2 position = ChunkIndex;
         if (generator != null)
@@ -288,9 +284,9 @@ public class Chunk : MonoBehaviour
     public void SetupGraphics()
     {
         // Create the sprite
-        chunkSpriteRend.sprite = Sprite.Create(texture, new Rect(0, 0, blockSize * chunkSize, blockSize * chunkSize), Vector2.zero);
+        chunkSpriteRend.sprite = Sprite.Create(texture, new Rect(0, 0, blockSize * chunkSize, blockSize * chunkSize), Vector2.zero, PixelUnitSize);
 
-     //   DrawAllBlocks();
+        //   DrawAllBlocks();
 
         texture.Apply();
 
@@ -314,8 +310,8 @@ public class Chunk : MonoBehaviour
             boxColliders[index] = gameObject.AddComponent<BoxCollider2D>();
             // Hide box components in the inspector
             boxColliders[index].hideFlags = HideFlags.HideInInspector;
-            boxColliders[index].center = new Vector2(((x * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2, ((y * blockSize) / pixelUnitSize) + (blockSize / pixelUnitSize) / 2);
-            boxColliders[index].size = new Vector2(blockSize / pixelUnitSize, blockSize / pixelUnitSize);
+            boxColliders[index].center = new Vector2(((x * blockSize) / PixelUnitSize) + (blockSize / PixelUnitSize) / 2, ((y * blockSize) / PixelUnitSize) + (blockSize / PixelUnitSize) / 2);
+            boxColliders[index].size = new Vector2(blockSize / PixelUnitSize, blockSize / PixelUnitSize);
             boxColliders[index].enabled = false;
         }
     }
@@ -351,11 +347,6 @@ public class Chunk : MonoBehaviour
                     SetBlockCollision(x, y, true);
             }
         }
-    }
-
-    private void UpdateColliders(object o)
-    {
-        UpdateColliders();
     }
 
     #endregion
@@ -521,12 +512,12 @@ public class Chunk : MonoBehaviour
     public Vector2 WorldPositionToIndex(Vector2 position)
     {
         position -= transform.position.ToVector2();
-        position *= pixelUnitSize;
+        position *= PixelUnitSize;
         Vector2 points = new Vector2(Mathf.Round(position.x), Mathf.Round(position.y));
         // Vector2 points = position;
         Vector2 mod = new Vector2(points.x % blockSize, points.y % blockSize);
         Vector2 index = points - mod;
-        index /= pixelUnitSize;
+        index /= PixelUnitSize;
         index *= _chunkToWorldSize;
         return index;
     }
@@ -559,27 +550,22 @@ public class Chunk : MonoBehaviour
         {
             if (blocks[x, y] != null)
             {
-                // If block implemented IUpdateable remove it from the list
-                if (blocks[x, y] is ITickable)
-                    updateables.Remove(blocks[x, y] as ITickable);
-
                 blocks[x, y].OnDestroy(this);
             }
 
+            // Don't redraw if the block is already the same type
+            if (block == null || blocks[x, y] == null || (blocks[x, y].GetType() != block.GetType()))
+                DrawBlock(x, y, block);
+            IsDirty = true;
+
             blocks[x, y] = block;
             if (block != null)
-            {
-                if (block is ITickable)
-                    updateableBuffer.Add(block as ITickable);
-            }
+                block.SetIndex(x, y);
 
             if (block != null)
             {
                 block.OnCreate(this);
             }
-
-            DrawBlock(x, y, block);
-            IsDirty = true;
 
             // Set neighbour chunks to dirty
             if (x == 0)
@@ -700,21 +686,15 @@ public class Chunk : MonoBehaviour
 
     private void UpdateChunk()
     {
-        if (Time.time - _lastTickTime >= tickTime)
+        if (tick && Time.time - _lastTickTime >= tickTime)
             Tick();
-
-        // Add all updateables from buffer
-        for (int i = updateableBuffer.Count - 1; i >= 0; i--)
-        {
-            updateables.Add(updateableBuffer[i]);
-            updateableBuffer.Remove(updateableBuffer[i]);
-        }
 
         if (IsDirty && _isSpriteSetup && IsGenerated)
         {
             texture.SetPixels(texturePixels);
             texture.Apply();
-            UpdateColliders();
+            if (useColliders)
+                UpdateColliders();
             IsDirty = false;
         }
     }
@@ -727,12 +707,18 @@ public class Chunk : MonoBehaviour
     /// <summary>
     /// Trigger a chunk tick
     /// </summary>
-    private void Tick()
+    public void Tick()
     {
         // Update all updateable blocks
-        for (int i = updateables.Count - 1; i >= 0; i--)
+        //for (int i = updateables.Count - 1; i >= 0; i--)
+        //{
+        //    updateables[i].Update(this);
+        //}
+
+        foreach (Block b in blocks)
         {
-            updateables[i].Update(this);
+            if (b != null)
+                b.Update(this);
         }
 
         _lastTickTime = Time.time;
@@ -741,12 +727,6 @@ public class Chunk : MonoBehaviour
     #endregion
 
     #region Helper Methods
-
-    public float Round(float value)
-    {
-        // Make sure to round up from 0.05
-        return Mathf.Round((value + (value > 0 ? 0.01f : -0.01f)) * 10f) / 10f;
-    }
 
     /// <summary>
     /// Translate the index positions x and y to the proper chunk in relation to this chunk. i.e x = -5 and the chunk size is 10 it will
@@ -759,12 +739,12 @@ public class Chunk : MonoBehaviour
     {
         int xIndex = 0;
         int yIndex = 0;
-        if (x > 0)
+        if (x >= chunkSize)
         {
             xIndex = Mathf.FloorToInt((x / chunkSize) * _chunkIndexSize);
             x = x % chunkSize;
         }
-        if (y > 0)
+        if (y >= chunkSize)
         {
             yIndex = Mathf.FloorToInt((y / chunkSize) * _chunkIndexSize);
             y = y % chunkSize;

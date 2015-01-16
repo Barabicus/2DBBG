@@ -17,9 +17,14 @@ public class PlayerController : MonoBehaviour
     public float bulletSpeedMax = 200f;
     public bool sprayBullet = true;
     public bool clickCausesExplode = false;
+    public bool canShootBullets = false;
+
+    public event System.Action OnKilled;
+
 
     public void Update()
     {
+
         rigidbody2D.MoveRotation(rigidbody2D.rotation + -Input.GetAxis("Horizontal") * rotSpeed * Time.deltaTime);
 
         if (Input.GetKey(KeyCode.W))
@@ -38,7 +43,7 @@ public class PlayerController : MonoBehaviour
             }
         }
 
-        if (Input.GetKey(KeyCode.Space))
+        if (canShootBullets && Input.GetKey(KeyCode.Space))
         {
             for (int i = 0; i < Random.Range(minShootAmount, maxShootAmount); i++)
             {
@@ -62,6 +67,27 @@ public class PlayerController : MonoBehaviour
 
     }
 
+    public void OnCollisionEnter2D(Collision2D coll)
+    {
+        if (coll.gameObject.layer == 11)
+        {
+            if (OnKilled != null)
+                OnKilled();
+
+            Die();
+        }
+    }
+
+
+    private void Die()
+    {
+        gameObject.SetActive(false);
+        for (int x = 0; x < 500; x++)
+        {
+            Transform bullet = Instantiate(bulletPrefab, transform.position.ToVector2() + Random.insideUnitCircle, Quaternion.identity) as Transform;
+            bullet.rigidbody2D.AddForce((bullet.transform.position - transform.position).normalized * 5, ForceMode2D.Impulse);
+        }
+    }
 
     private void ShootBullet(Transform position, Vector3 direction)
     {
