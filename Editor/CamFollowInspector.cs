@@ -34,6 +34,8 @@ public class CamFollowInspector : Editor
         if (!followY.boolValue)
             EditorGUILayout.PropertyField(yDefaultPos, new GUIContent("Y Position", "The Position the Camera should set it's Y position to"));
 
+        DrawDefaultInspector();
+
         serializedObject.ApplyModifiedProperties();
     }
 }

@@ -11,9 +11,13 @@ public class World : MonoBehaviour
 {
 
     private Dictionary<Vector2, Chunk> _chunks;
+    public Chunk[] preloadedChunks;
 
     public Chunk chunkPrefab;
     public int chunksX, chunksY;
+
+    // [HideInInspector]
+    //  public bool preLoaded = false;
     /// <summary>
     /// Set to true if the chunks should load before anything else happens. If set to false the chunks will load during gameplay.
     /// </summary>
@@ -23,12 +27,14 @@ public class World : MonoBehaviour
     /// </summary>
     public int renderBatch = 8;
     /// <summary>
-    /// Populate the world on start
+    /// Populate the world on awake
     /// </summary>
-    public bool loadChunksOnStart = true;
+    public bool loadChunksOnAwake = true;
 
     private float _chunkSize;
     public LoadingStatus worldLoadingStatus;
+
+    private Vector3 originalPosition;
 
     public List<Chunk> Chunks
     {
@@ -40,8 +46,69 @@ public class World : MonoBehaviour
 
     void Awake()
     {
+        //  gameObject.SetActive(false);
+        originalPosition = transform.position;
+        transform.position = Vector3.zero;
+        if (chunkPrefab.generator != null)
+            chunkPrefab.generator.PreLoadGenerator(chunkPrefab);
+        InitVariables();
+
+        if (loadChunksOnAwake)
+        {
+            if (!preloadChunks)
+            {
+                worldLoadingStatus.loadingFinished += () => { StartCoroutine(RenderChunks()); };
+                StartCoroutine(SetupChunks());
+            }
+            else
+            {
+                ForceLoad();
+            }
+        }
+        transform.position = originalPosition;
+        gameObject.SetActive(true);
+    }
+
+    [ContextMenu("PreInstantiate Chunks")]
+    public void PreInstantiateChunks()
+    {
+        preloadedChunks = new Chunk[chunksX * chunksY];
+
+        for (int x = 0; x < chunksX; x++)
+        {
+            for (int y = 0; y < chunksY; y++)
+            {
+                Chunk ch = InstantiateChunk(x, y);
+                ch.transform.parent = transform;
+                InitChunk(ch);
+                preloadedChunks[x + (y * chunksY)] = ch;
+            }
+        }
+
+    }
+
+    [ContextMenu("Unload Chunks")]
+    public void UnloadChunks()
+    {
+        if (preloadedChunks == null)
+        {
+            Debug.Log("Can't unload, no chunks found");
+            return;
+        }
+        List<Chunk> _preloaded = preloadedChunks.Cast<Chunk>().ToList();
+        for (int i = _preloaded.Count - 1; i >= 0; i--)
+        {
+            if (_preloaded[i] != null)
+                DestroyImmediate(_preloaded[i].gameObject);
+        }
+
+        preloadedChunks = null;
+    }
+
+    private void InitVariables()
+    {
         _chunkSize = (chunkPrefab.blockSize * chunkPrefab.chunkSize) / chunkPrefab.PixelUnitSize;
-        worldLoadingStatus = worldLoadingStatus == null ? gameObject.AddComponent<LoadingStatus>() : worldLoadingStatus;
+        worldLoadingStatus = worldLoadingStatus == null ? GetComponent<LoadingStatus>() : worldLoadingStatus;
 
         if (chunkPrefab == null)
         {
@@ -51,23 +118,15 @@ public class World : MonoBehaviour
         }
 
         _chunks = new Dictionary<Vector2, Chunk>();
+    }
 
-        if (loadChunksOnStart)
-        {
-            if (!preloadChunks)
-            {
-                worldLoadingStatus.loadingFinished += () => { StartCoroutine(RenderChunks()); };
-                StartCoroutine(SetupChunks());
-            }
-            else
-            {
-                // Setup Chunks
-                IEnumerator e = SetupChunks();
-                while (e.MoveNext() != false) ;
-                IEnumerator r = RenderChunks();
-                while (r.MoveNext() != false) ;
-            }
-        }
+    private void ForceLoad()
+    {
+        // Setup Chunks
+        IEnumerator e = SetupChunks();
+        while (e.MoveNext() != false) ;
+        IEnumerator r = RenderChunks();
+        while (r.MoveNext() != false) ;
     }
 
     private IEnumerator SetupChunks()
@@ -77,18 +136,22 @@ public class World : MonoBehaviour
         worldLoadingStatus.loadingText = "Loading Chunk";
         worldLoadingStatus.finishAmount = chunksY * chunksX;
         worldLoadingStatus.currentAmount = 0;
-        for (int y = 0; y < chunksY; y++)
-        {
-            for (int x = 0; x < chunksX; x++)
+        if (preloadedChunks != null && preloadedChunks.Length > 0)
+            for (int p = 0; p < preloadedChunks.Length; p++)
+                InitChunk(preloadedChunks[p]);
+        else
+            for (int y = 0; y < chunksY; y++)
             {
-                CreateChunk(x, y);
-                i++;
-                if (i % 250 == 0)
-                    yield return null;
+                for (int x = 0; x < chunksX; x++)
+                {
+                    InitChunk(InstantiateChunk(x, y));
+                    i++;
+                    if (i % 250 == 0)
+                        yield return null;
 
-                worldLoadingStatus.Increment();
+                    worldLoadingStatus.Increment();
+                }
             }
-        }
     }
 
     private IEnumerator RenderChunks()
@@ -115,22 +178,31 @@ public class World : MonoBehaviour
 
     }
 
-    private Chunk CreateChunk(int x, int y)
+    //private Chunk CreateChunk(int x, int y)
+    //{
+    //    chunk.World = this;
+    //    chunk.InitialSetup();
+    //    chunk.Initialize();
+    //    chunk.transform.parent = transform;
+    //    // Remove chunk from list if it has been reinitialized
+    //    //  chunk.ChunkReInitialized += (c) => { RemoveChunkAtIndex(c.ChunkIndex); };
+    //    return chunk;
+    //}
+
+    private Chunk InstantiateChunk(int x, int y)
     {
         Chunk chunk = Instantiate(chunkPrefab, transform.position + new Vector3(x * chunkPrefab.ChunkIndexSize, y * chunkPrefab.ChunkIndexSize, 0), Quaternion.identity) as Chunk;
+        return chunk;
+    }
+
+    private void InitChunk(Chunk chunk)
+    {
         chunk.World = this;
         chunk.InitialSetup();
         chunk.Initialize();
         chunk.transform.parent = transform;
-        // Remove chunk from list if it has been reinitialized
-        //  chunk.ChunkReInitialized += (c) => { RemoveChunkAtIndex(c.ChunkIndex); };
-        return chunk;
     }
 
-    private Chunk CreateChunk(Vector2 index)
-    {
-        return CreateChunk((int)index.x, (int)index.y);
-    }
 
     #endregion
 
@@ -155,10 +227,13 @@ public class World : MonoBehaviour
     /// <returns></returns>
     public bool AddChunk(Chunk chunk)
     {
-        if (!_chunks.ContainsKey(chunk.ChunkIndex) && chunk.IsInitialized)
+        if (Application.isPlaying)
         {
-            _chunks.Add(chunk.ChunkIndex, chunk);
-            return true;
+            if (!_chunks.ContainsKey(chunk.ChunkIndex) && chunk.IsInitialized)
+            {
+                _chunks.Add(chunk.ChunkIndex, chunk);
+                return true;
+            }
         }
         if (!chunk.IsInitialized)
             Debug.LogWarning("Trying to add chunk which has not be initialized");
@@ -271,4 +346,10 @@ public class World : MonoBehaviour
     }
 
     #endregion
+
+    public void OnDrawGizmosSelected()
+    {
+        Gizmos.color = Color.cyan;
+        Gizmos.DrawWireCube(new Vector3(chunksX, chunksY, 0), new Vector3(_chunkSize * chunksX, _chunkSize * chunksY, 0));
+    }
 }

@@ -11,7 +11,7 @@ public class Missile : MonoBehaviour
     {
         Physics2D.IgnoreLayerCollision(9, 9);
 
-        rigidbody2D.AddForce((targetPos - transform.position.ToVector2()).normalized * 5f, ForceMode2D.Impulse);
+        GetComponent<Rigidbody2D>().AddForce((targetPos - transform.position.ToVector2()).normalized * 5f, ForceMode2D.Impulse);
 
     }
 

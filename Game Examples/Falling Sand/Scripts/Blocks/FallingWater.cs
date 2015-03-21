@@ -1,7 +1,7 @@
 ﻿using UnityEngine;
 using System.Collections;
 
-public class FallingWater : FallingSandCoreBlock
+public class FallingWater : Liquid
 {
 
     public override Color BlockColor
@@ -10,35 +10,8 @@ public class FallingWater : FallingSandCoreBlock
     }
 
 
-    public override void Update(Chunk chunk)
+    public override FallingSandBlock NewBlock
     {
-        base.Update(chunk);
-
-        if (BottomBlock == null)
-        {
-            SetThisBlock(chunk, null);
-            SetBottomBlock(chunk, new FallingWater());
-        }
-        else if (RightBlock == null || LeftBlock == null)
-        {
-            switch (Random.Range(0, 2))
-            {
-                case 0:
-                    if (RightBlock == null)
-                    {
-                        SetThisBlock(chunk, null);
-                        SetRightBlock(chunk, new FallingWater());
-                    }
-                    break;
-                case 1:
-                    if (LeftBlock == null)
-                    {
-                        SetThisBlock(chunk, null);
-                        SetLeftBlock(chunk, new FallingWater());
-                    }
-                    break;
-            }
-        }
+        get { return new FallingWater(); }
     }
-
 }

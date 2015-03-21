@@ -2,6 +2,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine.UI;
+using System;
 
 public class FallingSandController : MonoBehaviour
 {
@@ -11,12 +12,19 @@ public class FallingSandController : MonoBehaviour
     public float placeAmount;
     public int placeRadius = 3;
     public int stoneRadius = 3;
+    public int gameSpeed = 1;
     public float tickTime = 10;
     public Slider radiusSlider;
 
     private List<Chunk> chunks = new List<Chunk>();
 
-    System.Type leftClickSpawn = typeof(FallingWater);
+    System.Type leftClickSpawn = typeof(WallBlock);
+
+    public string SelectedString
+    {
+        get;
+        set;
+    }
 
     public string CurrentLeftClickType
     {
@@ -24,25 +32,53 @@ public class FallingSandController : MonoBehaviour
         {
             switch (value)
             {
-                case "fallingblock":
+                case "Sand":
                     leftClickSpawn = typeof(FallingSand);
                     break;
-                case "fallingvirus":
+                case "Virus":
                     leftClickSpawn = typeof(FallingVirus);
                     break;
-                case "fallingwater":
+                case "Water":
                     leftClickSpawn = typeof(FallingWater);
                     break;
-                case "seed":
+                case "Vine":
                     leftClickSpawn = typeof(VineBlock);
                     break;
-                case "clone":
+                case "Clone":
                     leftClickSpawn = typeof(FallingClone);
                     break;
-                case "eraser":
+                case "Eraser":
                     leftClickSpawn = null;
                     break;
+                case "Fire":
+                    leftClickSpawn = typeof(FallingFire);
+                    break;
+                case "Wall":
+                    leftClickSpawn = typeof(WallBlock);
+                    break;
+                case "Ice":
+                    leftClickSpawn = typeof(FallingIce);
+                    break;
+                case "Grass":
+                    leftClickSpawn = typeof(FallingGrass);
+                    break;
+                case "Maze":
+                    leftClickSpawn = typeof(FallingMaze);
+                    break;
+                case "Steel":
+                    leftClickSpawn = typeof(FallingSteel);
+                    break;
+                case "VirusSolid":
+                    leftClickSpawn = typeof(FallingVirusSolid);
+                    break;
+                case "Tree":
+                    leftClickSpawn = typeof(FallingTree);
+                    break;
+                case "Hydrogen":
+                    leftClickSpawn = typeof(FallingHydrogen);
+                    break;
             }
+            SelectedString = value;
         }
     }
 
@@ -65,10 +101,11 @@ public class FallingSandController : MonoBehaviour
     {
         while (true)
         {
-            for (int i = 0; i < chunks.Count; i++)
-            {
-                chunks[i].Tick();
-            }
+            for (int s = 0; s < gameSpeed; s++)
+                for (int i = 0; i < chunks.Count; i++)
+                {
+                    chunks[i].Tick();
+                }
             yield return new WaitForSeconds(tickTime);
         }
     }
@@ -78,9 +115,20 @@ public class FallingSandController : MonoBehaviour
         placeRadius = (int)radius;
     }
 
+    public void ChangeGameSpeed(float speed)
+    {
+        gameSpeed = (int)speed;
+    }
+
     // Update is called once per frame
     void Update()
     {
+        if (Input.GetKeyDown(KeyCode.LeftBracket))
+            radiusSlider.value = Mathf.Max(radiusSlider.value - 1, radiusSlider.minValue);
+
+        if (Input.GetKeyDown(KeyCode.RightBracket))
+            radiusSlider.value = Mathf.Min(radiusSlider.value + 1, radiusSlider.maxValue);
+
         if (Input.GetKeyDown(KeyCode.F))
         {
             int count = 0;
@@ -92,7 +140,6 @@ public class FallingSandController : MonoBehaviour
                         count++;
                 }
             }
-            Debug.Log("count: " + count);
         }
 
 
@@ -102,61 +149,31 @@ public class FallingSandController : MonoBehaviour
             if (ch != null)
             {
                 Vector2 index = ch.WorldPositionToIndex(Camera.main.ScreenToWorldPoint(Input.mousePosition).ToVector2());
-                ch.SetBlockAtIndex(index, (Block)System.Activator.CreateInstance(leftClickSpawn));
+                ch.SetBlockAtIndex(index, CreateBlock(leftClickSpawn));
             }
         }
 
 
         if (Input.GetMouseButton(0))
         {
-            if (leftClickSpawn != null)
-            {
-
-                Chunk ch = world.GetChunkFromWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition).ToVector2());
-                if (ch != null)
-                {
-                    Vector2 index = ch.WorldPositionToIndex(Camera.main.ScreenToWorldPoint(Input.mousePosition).ToVector2());
-                    //  ch.SetBlockAtIndex(index, new WallBlock());
-                    //for (int y = -placeRadius; y < placeRadius; y++)
-                    //    for (int x = -placeRadius; x < placeRadius; x++)
-                    //        ch.SetBlockAtIndex(index + new Vector2(x, y), (Block)System.Activator.CreateInstance(leftClickSpawn));
-
-                    for (int i = 1; i < placeRadius; i++)
-                        CirclePlace((int)index.x, (int)index.y, i, ch);
-
-                }
-
-            }
-            else
-            {
-                // Eraser
-                Chunk ch = world.GetChunkFromWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition).ToVector2());
-                if (ch != null)
-                {
-                    Vector2 index = ch.WorldPositionToIndex(Camera.main.ScreenToWorldPoint(Input.mousePosition).ToVector2());
-                    ch.SetBlockAtIndex(index, new WallBlock());
-
-                    for (int y = -placeRadius; y < placeRadius; y++)
-                        for (int x = -placeRadius; x < placeRadius; x++)
-                            ch.SetBlockAtIndex(index + new Vector2(x, y), null);
-                }
-            }
-        }
-        if (Input.GetMouseButton(2))
-        {
             Chunk ch = world.GetChunkFromWorldPosition(Camera.main.ScreenToWorldPoint(Input.mousePosition).ToVector2());
             if (ch != null)
             {
                 Vector2 index = ch.WorldPositionToIndex(Camera.main.ScreenToWorldPoint(Input.mousePosition).ToVector2());
-                ch.SetBlockAtIndex(index, new WallBlock());
 
-                for (int y = -placeRadius; y < placeRadius; y++)
-                    for (int x = -placeRadius; x < placeRadius; x++)
-                        ch.SetBlockAtIndex(index + new Vector2(x, y), new WallBlock());
+                for (int i = 1; i < placeRadius; i++)
+                    CirclePlace((int)index.x, (int)index.y, i, ch);
             }
         }
     }
 
+    /// <summary>
+    /// Place blocks as a circle at points x, y with the radius size
+    /// </summary>
+    /// <param name="x0"></param>
+    /// <param name="y0"></param>
+    /// <param name="radius"></param>
+    /// <param name="ch"></param>
     public void CirclePlace(int x0, int y0, int radius, Chunk ch)
     {
         int x = radius;
@@ -165,14 +182,14 @@ public class FallingSandController : MonoBehaviour
 
         while (x >= y)
         {
-            ch.SetBlockAtIndex(x + x0, y + y0, (Block)System.Activator.CreateInstance(leftClickSpawn));
-            ch.SetBlockAtIndex(y + x0, x + y0, (Block)System.Activator.CreateInstance(leftClickSpawn));
-            ch.SetBlockAtIndex(-x + x0, y + y0, (Block)System.Activator.CreateInstance(leftClickSpawn));
-            ch.SetBlockAtIndex(-y + x0, x + y0, (Block)System.Activator.CreateInstance(leftClickSpawn));
-            ch.SetBlockAtIndex(-x + x0, -y + y0, (Block)System.Activator.CreateInstance(leftClickSpawn));
-            ch.SetBlockAtIndex(-y + x0, -x + y0, (Block)System.Activator.CreateInstance(leftClickSpawn));
-            ch.SetBlockAtIndex(x + x0, -y + y0, (Block)System.Activator.CreateInstance(leftClickSpawn));
-            ch.SetBlockAtIndex(y + x0, -x + y0, (Block)System.Activator.CreateInstance(leftClickSpawn));
+            ch.SetBlockAtIndex(x + x0, y + y0, CreateBlock(leftClickSpawn));
+            ch.SetBlockAtIndex(y + x0, x + y0, CreateBlock(leftClickSpawn));
+            ch.SetBlockAtIndex(-x + x0, y + y0, CreateBlock(leftClickSpawn));
+            ch.SetBlockAtIndex(-y + x0, x + y0, CreateBlock(leftClickSpawn));
+            ch.SetBlockAtIndex(-x + x0, -y + y0, CreateBlock(leftClickSpawn));
+            ch.SetBlockAtIndex(-y + x0, -x + y0, CreateBlock(leftClickSpawn));
+            ch.SetBlockAtIndex(x + x0, -y + y0, CreateBlock(leftClickSpawn));
+            ch.SetBlockAtIndex(y + x0, -x + y0, CreateBlock(leftClickSpawn));
             y++;
             if (radiusError < 0)
             {
@@ -184,5 +201,20 @@ public class FallingSandController : MonoBehaviour
                 radiusError += 2 * (y - x + 1);
             }
         }
+    }
+
+    /// <summary>
+    /// Creates a block that can instantly update
+    /// </summary>
+    /// <param name="blockType"></param>
+    /// <returns></returns>
+    public FrequentBlock CreateBlock(System.Type blockType)
+    {
+        if (leftClickSpawn == null)
+            return null;
+
+        FrequentBlock block = (FrequentBlock)System.Activator.CreateInstance(leftClickSpawn);
+        block.CanUpdate = true;
+        return block;
     }
 }

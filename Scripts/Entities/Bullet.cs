@@ -17,7 +17,8 @@ public class Bullet : MonoBehaviour {
         {
             foreach (ContactPoint2D contact in col.contacts)
             {
-                Chunk ch = col.gameObject.GetComponent<Chunk>();
+                Chunk ch = contact.collider.gameObject.GetComponent<Chunk>();
+                if(ch != null)
                 ch.SetBlockAtContact(contact, null);
             }
             Destroy(gameObject);

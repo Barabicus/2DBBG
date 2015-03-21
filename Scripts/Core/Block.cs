@@ -1,9 +1,10 @@
 ﻿using UnityEngine;
 using System.Collections;
 
+[System.Serializable]
 public abstract class Block
 {
-    protected int indexX, indexY;
+    public int indexX, indexY;
 
     public void SetIndex(int x, int y)
     {
@@ -14,12 +15,19 @@ public abstract class Block
     public abstract Color BlockColor { get; }
     public virtual void OnCreate(Chunk chunk) { }
     public virtual void OnDestroy(Chunk chunk) { }
-    public virtual void OnNeighbourChange(BlockNeighbour blockChanged) { }
+    public virtual void OnNeighbourChange(Chunk chunk, BlockNeighbour blockChanged) { }
 
-    public virtual void Update(Chunk chunk)
+    /// <summary>
+    /// UpdateBlock is called by the chunk. The block can then determain whether or not to call update
+    /// which should perform actual block update logic.
+    /// </summary>
+    /// <param name="chunk"></param>
+    public virtual void UpdateBlock(Chunk chunk)
     {
-
+        Update(chunk);
     }
+
+    protected virtual void Update(Chunk chunk) { }
 
     #region HelperMethods
 

@@ -1,6 +1,5 @@
 ﻿using UnityEngine;
 using System.Collections;
-using System;
 using System.Collections.Generic;
 using System.Threading;
 
@@ -11,9 +10,11 @@ public class Chunk : MonoBehaviour
     #region Fields
     public int blockSize = 16;
     public int chunkSize = 16;
-    public bool useThreading = true;
-    public bool tick = true;
+    public bool useThreading = false;
+    public TickMode tickMode = TickMode.LinearTick;
     public float tickTime = 2f;
+    public float randomTickMin = 1f;
+    public float randomTickMax = 2f;
     public ChunkGenerator generator;
     public UpdateMethod updateMethod = UpdateMethod.Update;
     public bool useColliders = true;
@@ -43,7 +44,6 @@ public class Chunk : MonoBehaviour
 
     SpriteRenderer chunkSpriteRend;
 
-    [HideInInspector]
     public Block[,] blocks;
     [HideInInspector]
     public BoxCollider2D[] boxColliders;
@@ -64,7 +64,7 @@ public class Chunk : MonoBehaviour
 
     #region Events
 
-    public event Action<Chunk> ChunkReInitialized;
+    public event System.Action<Chunk> ChunkReInitialized;
 
     #endregion
 
@@ -74,6 +74,13 @@ public class Chunk : MonoBehaviour
     {
         Update,
         FixedUpdate
+    }
+
+    public enum TickMode
+    {
+        DontTick,
+        LinearTick,
+        RandomTick
     }
 
     #endregion
@@ -223,6 +230,10 @@ public class Chunk : MonoBehaviour
                 for (int y = 0; y < blocks.GetLength(1); y++)
                 {
                     blocks[x, y] = generator.GenerateBlock(((position.x * _chunkToWorldSize) + x) * BlockToWorldSize, ((position.y * _chunkToWorldSize) + y) * BlockToWorldSize);
+                    // Since Generate directly assigns a block and will not go through SetBlockAtIndex,
+                    // Assign the index to the block here
+                    if (blocks[x, y] != null)
+                        blocks[x, y].SetIndex(x, y);
                 }
             }
         }
@@ -257,6 +268,7 @@ public class Chunk : MonoBehaviour
 
     /// <summary>
     /// Returns an index from a coordinate based on chunk * block size
+    /// i.e. returns an index from a pixel within the chunk
     /// </summary>
     /// <param name="x"></param>
     /// <param name="y"></param>
@@ -272,7 +284,6 @@ public class Chunk : MonoBehaviour
     /// <param name="x"></param>
     /// <param name="y"></param>
     /// <returns></returns>
-
     private int CoordToNarrowIndex(int x, int y)
     {
         return (chunkSize * y) + x;
@@ -310,7 +321,7 @@ public class Chunk : MonoBehaviour
             boxColliders[index] = gameObject.AddComponent<BoxCollider2D>();
             // Hide box components in the inspector
             boxColliders[index].hideFlags = HideFlags.HideInInspector;
-            boxColliders[index].center = new Vector2(((x * blockSize) / PixelUnitSize) + (blockSize / PixelUnitSize) / 2, ((y * blockSize) / PixelUnitSize) + (blockSize / PixelUnitSize) / 2);
+            boxColliders[index].offset = new Vector2(((x * blockSize) / PixelUnitSize) + (blockSize / PixelUnitSize) / 2, ((y * blockSize) / PixelUnitSize) + (blockSize / PixelUnitSize) / 2);
             boxColliders[index].size = new Vector2(blockSize / PixelUnitSize, blockSize / PixelUnitSize);
             boxColliders[index].enabled = false;
         }
@@ -435,7 +446,7 @@ public class Chunk : MonoBehaviour
 
     /// <summary>
     /// Get index from a block reference. Returns true if the block can be found and sets index to the index value. 
-    /// Returns false if not found.s
+    /// Returns false if not found.
     /// </summary>
     /// <param name="block"></param>
     /// <param name="index"></param>
@@ -469,6 +480,10 @@ public class Chunk : MonoBehaviour
         if (x < 0 || y < 0 || x >= blocks.GetLength(0) || y >= blocks.GetLength(1))
         {
             Chunk otherChunk = TranslateChunk(ref x, ref y);
+            if (otherChunk == null)
+            {
+                Debug.DrawRay(transform.position + new Vector3(x * BlockToWorldSize + (BlockToWorldSize / 2), (y * BlockToWorldSize) + (BlockToWorldSize / 2), 0), Vector3.up * (BlockToWorldSize / 4), Color.red, 50f);
+            }
             if (otherChunk != null)
                 return otherChunk.GetBlockAtIndex(x, y);
             else return null;
@@ -511,7 +526,7 @@ public class Chunk : MonoBehaviour
     /// <returns></returns>
     public Vector2 WorldPositionToIndex(Vector2 position)
     {
-        position -= transform.position.ToVector2();
+        position -= (transform.position.ToVector2());
         position *= PixelUnitSize;
         Vector2 points = new Vector2(Mathf.Round(position.x), Mathf.Round(position.y));
         // Vector2 points = position;
@@ -529,7 +544,12 @@ public class Chunk : MonoBehaviour
     /// <returns></returns>
     public Vector2 IndexToWorldPosition(Vector2 index)
     {
-        return ChunkIndex + (index * _blockToWorldSize);
+        return ChunkIndex + (index * _blockToWorldSize) + World.transform.position.ToVector2();
+    }
+
+    public Vector2 IndexToWorldPosition(int x, int y)
+    {
+        return IndexToWorldPosition(new Vector2(x, y));
     }
 
     /// <summary>
@@ -686,8 +706,11 @@ public class Chunk : MonoBehaviour
 
     private void UpdateChunk()
     {
-        if (tick && Time.time - _lastTickTime >= tickTime)
+        if (tickMode != TickMode.DontTick && Time.time - _lastTickTime >= tickTime)
             Tick();
+
+        if (tickMode == TickMode.RandomTick)
+            tickTime = Random.Range(randomTickMin, randomTickMax);
 
         if (IsDirty && _isSpriteSetup && IsGenerated)
         {
@@ -709,16 +732,10 @@ public class Chunk : MonoBehaviour
     /// </summary>
     public void Tick()
     {
-        // Update all updateable blocks
-        //for (int i = updateables.Count - 1; i >= 0; i--)
-        //{
-        //    updateables[i].Update(this);
-        //}
-
         foreach (Block b in blocks)
         {
             if (b != null)
-                b.Update(this);
+                b.UpdateBlock(this);
         }
 
         _lastTickTime = Time.time;

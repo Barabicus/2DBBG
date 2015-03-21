@@ -25,11 +25,11 @@ public class PlayerController : MonoBehaviour
     public void Update()
     {
 
-        rigidbody2D.MoveRotation(rigidbody2D.rotation + -Input.GetAxis("Horizontal") * rotSpeed * Time.deltaTime);
+        GetComponent<Rigidbody2D>().MoveRotation(GetComponent<Rigidbody2D>().rotation + -Input.GetAxis("Horizontal") * rotSpeed * Time.deltaTime);
 
         if (Input.GetKey(KeyCode.W))
         {
-            rigidbody2D.AddForce(transform.up * speed * Time.deltaTime);
+            GetComponent<Rigidbody2D>().AddForce(transform.up * speed * Time.deltaTime);
         }
 
         if (Input.GetMouseButtonDown(0) && clickCausesExplode)
@@ -39,7 +39,7 @@ public class PlayerController : MonoBehaviour
             for (int i = 0; i < 250; i++)
             {
                 Transform bullet = Instantiate(bulletPrefab, mousePos + Random.insideUnitCircle.ToVector3() * 0.25f, Quaternion.identity) as Transform;
-                bullet.rigidbody2D.AddForce((bullet.transform.position - mousePos).normalized * Random.Range(bulletSpeedMin, bulletSpeedMax));
+                bullet.GetComponent<Rigidbody2D>().AddForce((bullet.transform.position - mousePos).normalized * Random.Range(bulletSpeedMin, bulletSpeedMax));
             }
         }
 
@@ -71,9 +71,6 @@ public class PlayerController : MonoBehaviour
     {
         if (coll.gameObject.layer == 11)
         {
-            if (OnKilled != null)
-                OnKilled();
-
             Die();
         }
     }
@@ -85,14 +82,16 @@ public class PlayerController : MonoBehaviour
         for (int x = 0; x < 500; x++)
         {
             Transform bullet = Instantiate(bulletPrefab, transform.position.ToVector2() + Random.insideUnitCircle, Quaternion.identity) as Transform;
-            bullet.rigidbody2D.AddForce((bullet.transform.position - transform.position).normalized * 5, ForceMode2D.Impulse);
+            bullet.GetComponent<Rigidbody2D>().AddForce((bullet.transform.position - transform.position).normalized * 5, ForceMode2D.Impulse);
         }
+        if (OnKilled != null)
+            OnKilled();
     }
 
     private void ShootBullet(Transform position, Vector3 direction)
     {
         Transform bullet = Instantiate(bulletPrefab, position.position, Quaternion.identity) as Transform;
-        bullet.rigidbody2D.AddForce((Quaternion.Euler(0f, 0f, Random.Range(-shootRange, shootRange)) * direction) * Random.Range(bulletSpeedMin, bulletSpeedMax));
+        bullet.GetComponent<Rigidbody2D>().AddForce((Quaternion.Euler(0f, 0f, Random.Range(-shootRange, shootRange)) * direction) * Random.Range(bulletSpeedMin, bulletSpeedMax));
     }
 
 }

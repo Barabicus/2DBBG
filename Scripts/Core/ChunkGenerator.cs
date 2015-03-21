@@ -3,6 +3,9 @@ using System.Collections;
 
 public abstract class ChunkGenerator : MonoBehaviour
 {
+
+    public virtual void PreLoadGenerator(Chunk chunk) { }
+
     /// <summary>
     /// Using the world position X and Y the generator outputs a block.
     /// </summary>
